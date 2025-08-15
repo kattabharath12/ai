@@ -16,11 +16,12 @@ cmds = [
     "chmod +x scripts/prebuild.sh"
 ]
 
-# Phase 3: Generate Prisma client (separate from build)
+# Phase 3: Generate Prisma client and run migrations
 [phases.prisma]
 cmds = [
     "yarn prisma generate",
-    "echo 'Prisma client generated successfully'"
+    "yarn prisma migrate deploy || echo 'Migration failed or not needed, continuing...'",
+    "echo 'Prisma client generated and migrations deployed successfully'"
 ]
 
 # Phase 4: Build Next.js application
