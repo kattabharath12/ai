@@ -6,40 +6,79 @@ export class W2ToForm1040Mapper {
    * Maps W2 extracted data to Form 1040 fields
    */
   static mapW2ToForm1040(w2Data: any, existingForm1040?: Partial<Form1040Data>): Partial<Form1040Data> {
+    console.log('🔍 [W2 MAPPER] Starting W2 to 1040 mapping...');
+    console.log('🔍 [W2 MAPPER] Input w2Data structure:', JSON.stringify(w2Data, null, 2));
+    console.log('🔍 [W2 MAPPER] Existing form1040 data:', JSON.stringify(existingForm1040, null, 2));
+
     const form1040Data: Partial<Form1040Data> = {
       ...existingForm1040,
     };
 
+    // Handle nested data structures - the data might be nested under extractedData
+    let actualW2Data = w2Data;
+    if (w2Data.extractedData && typeof w2Data.extractedData === 'object') {
+      console.log('🔍 [W2 MAPPER] Found nested extractedData, using that instead');
+      actualW2Data = w2Data.extractedData;
+    }
+
+    console.log('🔍 [W2 MAPPER] Using actualW2Data:', JSON.stringify(actualW2Data, null, 2));
+
     // Personal Information Mapping
-    if (w2Data.employeeName && !form1040Data.firstName) {
-      const nameParts = w2Data.employeeName.trim().split(/\s+/);
+    const employeeName = actualW2Data.employeeName || actualW2Data.Employee?.Name || actualW2Data['Employee.Name'];
+    if (employeeName && !form1040Data.firstName) {
+      console.log('🔍 [W2 MAPPER] Mapping employee name:', employeeName);
+      const nameParts = employeeName.trim().split(/\s+/);
       form1040Data.firstName = nameParts[0] || '';
       form1040Data.lastName = nameParts.slice(1).join(' ') || '';
     }
 
-    if (w2Data.employeeSSN && !form1040Data.ssn) {
-      form1040Data.ssn = this.formatSSN(w2Data.employeeSSN);
+    const employeeSSN = actualW2Data.employeeSSN || actualW2Data.Employee?.SSN || actualW2Data['Employee.SSN'];
+    if (employeeSSN && !form1040Data.ssn) {
+      console.log('🔍 [W2 MAPPER] Mapping employee SSN:', employeeSSN);
+      form1040Data.ssn = this.formatSSN(employeeSSN);
     }
 
-    if (w2Data.employeeAddress && !form1040Data.address) {
-      const addressParts = this.parseAddress(w2Data.employeeAddress);
+    const employeeAddress = actualW2Data.employeeAddress || actualW2Data.Employee?.Address || actualW2Data['Employee.Address'];
+    if (employeeAddress && !form1040Data.address) {
+      console.log('🔍 [W2 MAPPER] Mapping employee address:', employeeAddress);
+      const addressParts = this.parseAddress(employeeAddress);
       form1040Data.address = addressParts.street;
       form1040Data.city = addressParts.city;
       form1040Data.state = addressParts.state;
       form1040Data.zipCode = addressParts.zipCode;
     }
 
-    // Income Mapping
+    // Income Mapping - try multiple possible field names
     // Line 1: Total amount from Form(s) W-2, box 1
-    const wages = this.parseAmount(w2Data.wages);
+    const wagesValue = actualW2Data.wages || actualW2Data.WagesAndTips || actualW2Data['WagesAndTips'] || 
+                      actualW2Data.box1 || actualW2Data.Box1 || actualW2Data['Box 1'] || 
+                      actualW2Data.wagesAndTips || actualW2Data['wages_and_tips'];
+    
+    console.log('🔍 [W2 MAPPER] Found wages value:', wagesValue, 'type:', typeof wagesValue);
+    const wages = this.parseAmount(wagesValue);
+    console.log('🔍 [W2 MAPPER] Parsed wages amount:', wages);
+    
     if (wages > 0) {
       form1040Data.line1 = (form1040Data.line1 || 0) + wages;
+      console.log('✅ [W2 MAPPER] Successfully mapped wages to Line 1:', form1040Data.line1);
+    } else {
+      console.log('⚠️ [W2 MAPPER] No valid wages found to map to Line 1');
     }
 
     // Line 25a: Federal income tax withheld from Form(s) W-2
-    const federalTaxWithheld = this.parseAmount(w2Data.federalTaxWithheld);
+    const federalTaxWithheldValue = actualW2Data.federalTaxWithheld || actualW2Data.FederalIncomeTaxWithheld || 
+                                   actualW2Data['FederalIncomeTaxWithheld'] || actualW2Data.box2 || 
+                                   actualW2Data.Box2 || actualW2Data['Box 2'] || actualW2Data['federal_tax_withheld'];
+    
+    console.log('🔍 [W2 MAPPER] Found federal tax withheld value:', federalTaxWithheldValue, 'type:', typeof federalTaxWithheldValue);
+    const federalTaxWithheld = this.parseAmount(federalTaxWithheldValue);
+    console.log('🔍 [W2 MAPPER] Parsed federal tax withheld amount:', federalTaxWithheld);
+    
     if (federalTaxWithheld > 0) {
       form1040Data.line25a = (form1040Data.line25a || 0) + federalTaxWithheld;
+      console.log('✅ [W2 MAPPER] Successfully mapped federal tax withheld to Line 25a:', form1040Data.line25a);
+    } else {
+      console.log('⚠️ [W2 MAPPER] No valid federal tax withheld found to map to Line 25a');
     }
 
     // Calculate total income (Line 9) - simplified calculation
@@ -81,6 +120,7 @@ export class W2ToForm1040Mapper {
       form1040Data.line37 = totalTax - totalPayments;
     }
 
+    console.log('✅ [W2 MAPPER] Mapping completed. Final form1040Data:', JSON.stringify(form1040Data, null, 2));
     return form1040Data;
   }
 
@@ -160,12 +200,41 @@ export class W2ToForm1040Mapper {
   }
 
   private static parseAmount(value: any): number {
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') {
-      const cleaned = value.replace(/[$,\s]/g, '');
-      const parsed = parseFloat(cleaned);
-      return isNaN(parsed) ? 0 : parsed;
+    console.log('🔍 [PARSE AMOUNT] Input value:', value, 'type:', typeof value);
+    
+    if (value === null || value === undefined) {
+      console.log('🔍 [PARSE AMOUNT] Value is null/undefined, returning 0');
+      return 0;
     }
+    
+    if (typeof value === 'number') {
+      console.log('🔍 [PARSE AMOUNT] Value is already a number:', value);
+      return isNaN(value) ? 0 : value;
+    }
+    
+    if (typeof value === 'string') {
+      // Remove currency symbols, commas, and whitespace
+      const cleaned = value.replace(/[$,\s]/g, '');
+      console.log('🔍 [PARSE AMOUNT] Cleaned string:', cleaned);
+      const parsed = parseFloat(cleaned);
+      const result = isNaN(parsed) ? 0 : parsed;
+      console.log('🔍 [PARSE AMOUNT] Parsed result:', result);
+      return result;
+    }
+    
+    // Handle objects that might have a value property
+    if (typeof value === 'object' && value.value !== undefined) {
+      console.log('🔍 [PARSE AMOUNT] Object with value property:', value.value);
+      return this.parseAmount(value.value);
+    }
+    
+    // Handle objects that might have a content property (Azure DI format)
+    if (typeof value === 'object' && value.content !== undefined) {
+      console.log('🔍 [PARSE AMOUNT] Object with content property:', value.content);
+      return this.parseAmount(value.content);
+    }
+    
+    console.log('🔍 [PARSE AMOUNT] Unable to parse value, returning 0');
     return 0;
   }
 
