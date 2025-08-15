@@ -1,3 +1,4 @@
+
 {
   "name": "app",
   "private": true,
@@ -7,9 +8,13 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "prebuild": "npm run prisma:generate && npm run prisma:deploy",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:deploy": "prisma migrate deploy || echo 'Migration not needed or failed, continuing...'",
+    "prisma:push": "prisma db push",
     "postinstall": "prisma generate"
   },
   "prisma": {
