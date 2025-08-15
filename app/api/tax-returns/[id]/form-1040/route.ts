@@ -70,29 +70,46 @@ export async function GET(
     const w2MappingData = [];
 
     // Process each W2 document and map to 1040 form
+    console.log(`🔍 [1040 GET] Processing ${w2Documents.length} W2 documents`);
+    
     for (const w2Doc of w2Documents) {
+      console.log(`🔍 [1040 GET] Processing W2 document: ${w2Doc.fileName} (ID: ${w2Doc.id})`);
+      console.log(`🔍 [1040 GET] W2 document extractedData:`, JSON.stringify(w2Doc.extractedData, null, 2));
+      
       if (w2Doc.extractedData && typeof w2Doc.extractedData === 'object') {
         const extractedData = w2Doc.extractedData as any;
         
+        // Try different data structure paths
+        let w2DataToMap = extractedData.extractedData || extractedData;
+        
+        console.log(`🔍 [1040 GET] Data to map to 1040:`, JSON.stringify(w2DataToMap, null, 2));
+        console.log(`🔍 [1040 GET] Current form1040Data before mapping:`, JSON.stringify(form1040Data, null, 2));
+        
         // Map W2 data to 1040 form fields
         const mappedData = W2ToForm1040Mapper.mapW2ToForm1040(
-          extractedData.extractedData || extractedData, 
+          w2DataToMap, 
           form1040Data
         );
+        
+        console.log(`🔍 [1040 GET] Mapped data from W2:`, JSON.stringify(mappedData, null, 2));
         
         // Merge the mapped data
         form1040Data = { ...form1040Data, ...mappedData };
         
+        console.log(`🔍 [1040 GET] Form1040Data after merging:`, JSON.stringify(form1040Data, null, 2));
+        
         // Create mapping summary
-        const mappingSummary = W2ToForm1040Mapper.createMappingSummary(
-          extractedData.extractedData || extractedData
-        );
+        const mappingSummary = W2ToForm1040Mapper.createMappingSummary(w2DataToMap);
         
         w2MappingData.push({
           documentId: w2Doc.id,
           fileName: w2Doc.fileName,
           mappings: mappingSummary
         });
+        
+        console.log(`✅ [1040 GET] Successfully processed W2 document: ${w2Doc.fileName}`);
+      } else {
+        console.log(`⚠️ [1040 GET] W2 document ${w2Doc.fileName} has no extractedData or invalid format`);
       }
     }
 
@@ -113,6 +130,8 @@ export async function GET(
     }
 
     console.log("✅ [1040 GET] Successfully retrieved 1040 form data");
+    console.log("🔍 [1040 GET] Final form1040Data being returned:", JSON.stringify(form1040Data, null, 2));
+    console.log("🔍 [1040 GET] W2 mapping data being returned:", JSON.stringify(w2MappingData, null, 2));
     
     return NextResponse.json({
       form1040Data,
