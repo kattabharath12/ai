@@ -302,6 +302,27 @@ export function Form1040Interface({
           <AlertDescription>
             Data from {w2MappingData.length} W-2 form(s) has been automatically populated in this form. 
             Please review and verify all amounts before submitting.
+            <div className="mt-2 text-sm">
+              <strong>Populated fields:</strong>
+              {formData.line1 > 0 && <div>• Line 1 (Wages): ${formData.line1.toLocaleString()}</div>}
+              {formData.line25a > 0 && <div>• Line 25a (Federal Tax Withheld): ${formData.line25a.toLocaleString()}</div>}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Debug Info for W2 Mapping (only in development) */}
+      {process.env.NODE_ENV === 'development' && w2MappingData && w2MappingData.length > 0 && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <AlertCircle className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            <strong>Debug: W2 Mapping Data</strong>
+            <details className="mt-2">
+              <summary className="cursor-pointer">View W2 mapping details</summary>
+              <pre className="text-xs mt-2 overflow-x-auto">
+                {JSON.stringify(w2MappingData, null, 2)}
+              </pre>
+            </details>
           </AlertDescription>
         </Alert>
       )}
