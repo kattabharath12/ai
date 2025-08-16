@@ -1,4 +1,5 @@
 
+
 import { DocumentAnalysisClient, AzureKeyCredential } from "@azure/ai-form-recognizer";
 import { readFile } from "fs/promises";
 
@@ -143,6 +144,66 @@ export class AzureDocumentIntelligenceService {
       if (fields[azureFieldName]?.value !== undefined) {
         const value = fields[azureFieldName].value;
         w2Data[mappedFieldName] = typeof value === 'number' ? value : this.parseAmount(value);
+      }
+    }
+    
+    // Enhanced personal info extraction with better fallback handling
+    console.log('🔍 [Azure DI] Extracting personal information from W2...');
+    
+    // Employee Name - try multiple field variations
+    if (!w2Data.employeeName) {
+      const nameFields = ['Employee.Name', 'EmployeeName', 'Employee_Name', 'RecipientName'];
+      for (const fieldName of nameFields) {
+        if (fields[fieldName]?.value) {
+          w2Data.employeeName = fields[fieldName].value;
+          console.log('✅ [Azure DI] Found employee name:', w2Data.employeeName);
+          break;
+        }
+      }
+    }
+    
+    // Employee SSN - try multiple field variations
+    if (!w2Data.employeeSSN) {
+      const ssnFields = ['Employee.SSN', 'EmployeeSSN', 'Employee_SSN', 'RecipientTIN'];
+      for (const fieldName of ssnFields) {
+        if (fields[fieldName]?.value) {
+          w2Data.employeeSSN = fields[fieldName].value;
+          console.log('✅ [Azure DI] Found employee SSN:', w2Data.employeeSSN);
+          break;
+        }
+      }
+    }
+    
+    // Employee Address - try multiple field variations
+    if (!w2Data.employeeAddress) {
+      const addressFields = ['Employee.Address', 'EmployeeAddress', 'Employee_Address', 'RecipientAddress'];
+      for (const fieldName of addressFields) {
+        if (fields[fieldName]?.value) {
+          w2Data.employeeAddress = fields[fieldName].value;
+          console.log('✅ [Azure DI] Found employee address:', w2Data.employeeAddress);
+          break;
+        }
+      }
+    }
+    
+    // OCR fallback for personal info if not found in structured fields
+    if ((!w2Data.employeeName || !w2Data.employeeSSN || !w2Data.employeeAddress) && baseData.fullText) {
+      console.log('🔍 [Azure DI] Some personal info missing from structured fields, attempting OCR extraction...');
+      const personalInfoFromOCR = this.extractPersonalInfoFromOCR(baseData.fullText as string);
+      
+      if (!w2Data.employeeName && personalInfoFromOCR.name) {
+        w2Data.employeeName = personalInfoFromOCR.name;
+        console.log('✅ [Azure DI] Extracted employee name from OCR:', w2Data.employeeName);
+      }
+      
+      if (!w2Data.employeeSSN && personalInfoFromOCR.ssn) {
+        w2Data.employeeSSN = personalInfoFromOCR.ssn;
+        console.log('✅ [Azure DI] Extracted employee SSN from OCR:', w2Data.employeeSSN);
+      }
+      
+      if (!w2Data.employeeAddress && personalInfoFromOCR.address) {
+        w2Data.employeeAddress = personalInfoFromOCR.address;
+        console.log('✅ [Azure DI] Extracted employee address from OCR:', w2Data.employeeAddress);
       }
     }
     
@@ -292,6 +353,68 @@ export class AzureDocumentIntelligenceService {
   }
 
   /**
+   * Extracts personal information from OCR text using regex patterns
+   */
+  private extractPersonalInfoFromOCR(ocrText: string): {
+    name?: string;
+    ssn?: string;
+    address?: string;
+  } {
+    console.log('🔍 [Azure DI OCR] Searching for personal info in OCR text...');
+    
+    const personalInfo: { name?: string; ssn?: string; address?: string } = {};
+    
+    // Extract employee name - look for patterns like "Employee: Name" or after "Employee information"
+    const namePatterns = [
+      /Employee[:\s]+([A-Za-z\s]+?)(?:\n|SSN|Social|Address|$)/i,
+      /Employee\s+Name[:\s]+([A-Za-z\s]+?)(?:\n|SSN|Social|Address|$)/i,
+      /Name[:\s]+([A-Za-z\s]+?)(?:\n|SSN|Social|Address|$)/i
+    ];
+    
+    for (const pattern of namePatterns) {
+      const match = ocrText.match(pattern);
+      if (match && match[1]) {
+        personalInfo.name = match[1].trim();
+        console.log('🔍 [Azure DI OCR] Found employee name:', personalInfo.name);
+        break;
+      }
+    }
+    
+    // Extract SSN - look for XXX-XX-XXXX pattern
+    const ssnPatterns = [
+      /SSN[:\s]*(\d{3}-\d{2}-\d{4})/i,
+      /Social\s+Security[:\s]*(\d{3}-\d{2}-\d{4})/i,
+      /(\d{3}-\d{2}-\d{4})/
+    ];
+    
+    for (const pattern of ssnPatterns) {
+      const match = ocrText.match(pattern);
+      if (match && match[1]) {
+        personalInfo.ssn = match[1];
+        console.log('🔍 [Azure DI OCR] Found employee SSN:', personalInfo.ssn);
+        break;
+      }
+    }
+    
+    // Extract address - look for address patterns
+    const addressPatterns = [
+      /Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|$)/i,
+      /Employee\s+Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|$)/i
+    ];
+    
+    for (const pattern of addressPatterns) {
+      const match = ocrText.match(pattern);
+      if (match && match[1]) {
+        personalInfo.address = match[1].trim().replace(/\n/g, ' ');
+        console.log('🔍 [Azure DI OCR] Found employee address:', personalInfo.address);
+        break;
+      }
+    }
+    
+    return personalInfo;
+  }
+
+  /**
    * Extracts wages from OCR text using regex patterns for Box 1
    */
   private extractWagesFromOCR(ocrText: string): number {
@@ -341,6 +464,7 @@ export class AzureDocumentIntelligenceService {
       employerEIN: extractedData.employerEIN || '',
       employeeName: extractedData.employeeName || '',
       employeeSSN: extractedData.employeeSSN || '',
+      employeeAddress: extractedData.employeeAddress || '',
       wages: this.parseAmount(extractedData.wages) || 0,
       federalTaxWithheld: this.parseAmount(extractedData.federalTaxWithheld) || 0,
       socialSecurityWages: this.parseAmount(extractedData.socialSecurityWages) || 0,
@@ -397,3 +521,4 @@ export function createAzureDocumentIntelligenceConfig(): AzureDocumentIntelligen
     apiKey: process.env.AZURE_DOCUMENT_INTELLIGENCE_API_KEY!,
   };
 }
+
