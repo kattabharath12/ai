@@ -1,4 +1,5 @@
 
+
 import { Form1040Data, W2ToForm1040Mapping } from './form-1040-types';
 
 export class W2ToForm1040Mapper {
@@ -23,30 +24,60 @@ export class W2ToForm1040Mapper {
 
     console.log('🔍 [W2 MAPPER] Using actualW2Data:', JSON.stringify(actualW2Data, null, 2));
 
-    // Personal Information Mapping
+    // Personal Information Mapping - Enhanced to prioritize W2 data
+    console.log('🔍 [W2 MAPPER] Starting personal information mapping...');
+    
     const employeeName = actualW2Data.employeeName || actualW2Data.Employee?.Name || actualW2Data['Employee.Name'];
-    if (employeeName && !form1040Data.firstName) {
-      console.log('🔍 [W2 MAPPER] Mapping employee name:', employeeName);
+    if (employeeName) {
+      console.log('🔍 [W2 MAPPER] Mapping employee name from W2:', employeeName);
       const nameParts = employeeName.trim().split(/\s+/);
+      // Always use W2 data for personal info, overriding any existing data
       form1040Data.firstName = nameParts[0] || '';
       form1040Data.lastName = nameParts.slice(1).join(' ') || '';
+      console.log('✅ [W2 MAPPER] Mapped name - First:', form1040Data.firstName, 'Last:', form1040Data.lastName);
     }
 
     const employeeSSN = actualW2Data.employeeSSN || actualW2Data.Employee?.SSN || actualW2Data['Employee.SSN'];
-    if (employeeSSN && !form1040Data.ssn) {
-      console.log('🔍 [W2 MAPPER] Mapping employee SSN:', employeeSSN);
+    if (employeeSSN) {
+      console.log('🔍 [W2 MAPPER] Mapping employee SSN from W2:', employeeSSN);
+      // Always use W2 data for SSN, overriding any existing data
       form1040Data.ssn = this.formatSSN(employeeSSN);
+      console.log('✅ [W2 MAPPER] Mapped SSN:', form1040Data.ssn);
     }
 
     const employeeAddress = actualW2Data.employeeAddress || actualW2Data.Employee?.Address || actualW2Data['Employee.Address'];
-    if (employeeAddress && !form1040Data.address) {
-      console.log('🔍 [W2 MAPPER] Mapping employee address:', employeeAddress);
+    if (employeeAddress) {
+      console.log('🔍 [W2 MAPPER] Mapping employee address from W2:', employeeAddress);
       const addressParts = this.parseAddress(employeeAddress);
+      // Always use W2 data for address, overriding any existing data
       form1040Data.address = addressParts.street;
       form1040Data.city = addressParts.city;
       form1040Data.state = addressParts.state;
       form1040Data.zipCode = addressParts.zipCode;
+      console.log('✅ [W2 MAPPER] Mapped address:', {
+        street: form1040Data.address,
+        city: form1040Data.city,
+        state: form1040Data.state,
+        zipCode: form1040Data.zipCode
+      });
     }
+
+    // Create personal info object for easy access
+    const personalInfo = {
+      firstName: form1040Data.firstName,
+      lastName: form1040Data.lastName,
+      ssn: form1040Data.ssn,
+      address: form1040Data.address,
+      city: form1040Data.city,
+      state: form1040Data.state,
+      zipCode: form1040Data.zipCode,
+      sourceDocument: 'W2',
+      sourceDocumentId: actualW2Data.documentId || 'unknown'
+    };
+
+    // Add personal info to the form data for easy access by frontend
+    form1040Data.personalInfo = personalInfo;
+    console.log('✅ [W2 MAPPER] Created personalInfo object:', personalInfo);
 
     // Income Mapping - try multiple possible field names
     // Line 1: Total amount from Form(s) W-2, box 1
@@ -162,6 +193,16 @@ export class W2ToForm1040Mapper {
         form1040Line: 'Header',
         form1040Value: this.formatSSN(w2Data.employeeSSN),
         description: 'Taxpayer SSN from W2'
+      });
+    }
+
+    if (w2Data.employeeAddress) {
+      mappings.push({
+        w2Field: 'Employee Address',
+        w2Value: w2Data.employeeAddress,
+        form1040Line: 'Header',
+        form1040Value: w2Data.employeeAddress,
+        description: 'Taxpayer address from W2'
       });
     }
 
@@ -305,29 +346,97 @@ export class W2ToForm1040Mapper {
     state: string;
     zipCode: string;
   } {
-    // Simple address parsing - can be enhanced
-    const parts = address.split(',').map(part => part.trim());
+    console.log('🔍 [ADDRESS PARSER] Parsing address:', address);
     
-    if (parts.length >= 3) {
-      const street = parts.slice(0, -2).join(', ');
-      const city = parts[parts.length - 2];
-      const stateZip = parts[parts.length - 1];
+    // Enhanced address parsing to handle various formats
+    // Try comma-separated format first
+    const commaParts = address.split(',').map(part => part.trim());
+    
+    if (commaParts.length >= 3) {
+      const street = commaParts.slice(0, -2).join(', ');
+      const city = commaParts[commaParts.length - 2];
+      const stateZip = commaParts[commaParts.length - 1];
       const stateZipMatch = stateZip.match(/^([A-Z]{2})\s*(\d{5}(-\d{4})?)$/);
       
-      return {
-        street,
-        city,
-        state: stateZipMatch ? stateZipMatch[1] : '',
-        zipCode: stateZipMatch ? stateZipMatch[2] : ''
-      };
+      if (stateZipMatch) {
+        const result = {
+          street,
+          city,
+          state: stateZipMatch[1],
+          zipCode: stateZipMatch[2]
+        };
+        console.log('✅ [ADDRESS PARSER] Parsed comma-separated address:', result);
+        return result;
+      }
     }
     
-    return {
+    // Try space-separated format: "Street Address City STATE ZIP"
+    // Pattern: "0121 Gary Islands Apt. 691 Sandraport UT 35155-6840"
+    const spaceMatch = address.match(/^(.+?)\s+([A-Za-z\s]+?)\s+([A-Z]{2})\s+(\d{5}(-\d{4})?)$/);
+    if (spaceMatch) {
+      const result = {
+        street: spaceMatch[1].trim(),
+        city: spaceMatch[2].trim(),
+        state: spaceMatch[3],
+        zipCode: spaceMatch[4]
+      };
+      console.log('✅ [ADDRESS PARSER] Parsed space-separated address:', result);
+      return result;
+    }
+    
+    // Try alternative pattern where city might have multiple words
+    // Look for state (2 uppercase letters) followed by ZIP
+    const stateZipPattern = /\s+([A-Z]{2})\s+(\d{5}(-\d{4})?)$/;
+    const stateZipMatch = address.match(stateZipPattern);
+    
+    if (stateZipMatch) {
+      const beforeStateZip = address.substring(0, address.length - stateZipMatch[0].length);
+      
+      // Split the remaining part to get street and city
+      // Assume the last word(s) before state is the city
+      const words = beforeStateZip.trim().split(/\s+/);
+      
+      // Try to identify where street ends and city begins
+      // Look for common apartment indicators
+      let streetEndIndex = words.length - 1; // Default: everything except last word is street
+      
+      // If we find apartment indicators, city is likely after them
+      for (let i = 0; i < words.length; i++) {
+        if (/^(apt|apartment|unit|suite|ste)\.?$/i.test(words[i])) {
+          // City starts after apartment number
+          streetEndIndex = Math.min(i + 2, words.length - 1);
+          break;
+        }
+      }
+      
+      // For the specific format "0121 Gary Islands Apt. 691 Sandraport UT 35155-6840"
+      // We know "Sandraport" is the city
+      if (words.length >= 2) {
+        streetEndIndex = words.length - 2; // Last word before state is city
+      }
+      
+      const street = words.slice(0, streetEndIndex + 1).join(' ');
+      const city = words.slice(streetEndIndex + 1).join(' ');
+      
+      const result = {
+        street,
+        city,
+        state: stateZipMatch[1],
+        zipCode: stateZipMatch[2]
+      };
+      console.log('✅ [ADDRESS PARSER] Parsed pattern-matched address:', result);
+      return result;
+    }
+    
+    // Fallback: return the whole address as street
+    const result = {
       street: address,
       city: '',
       state: '',
       zipCode: ''
     };
+    console.log('⚠️ [ADDRESS PARSER] Could not parse address, using as street only:', result);
+    return result;
   }
 
   private static calculateTotalIncome(form1040Data: Partial<Form1040Data>): number {
@@ -427,6 +536,10 @@ export class W2ToForm1040Mapper {
       warnings.push('Employer EIN not found - may be needed for verification');
     }
 
+    if (!w2Data.employeeAddress) {
+      warnings.push('Employee address not found - address fields may not be auto-populated');
+    }
+
     return {
       isValid: errors.length === 0,
       errors,
@@ -434,3 +547,4 @@ export class W2ToForm1040Mapper {
     };
   }
 }
+
