@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
@@ -8,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { User, Users, ArrowRight } from "lucide-react"
+import { User, Users, ArrowRight, FileText, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface PersonalInfoStepProps {
   taxReturn: any
@@ -60,6 +62,60 @@ export function PersonalInfoStep({
     state: taxReturn.state || "",
     zipCode: taxReturn.zipCode || "",
   })
+
+  const [w2PersonalInfo, setW2PersonalInfo] = useState<any>(null)
+  const [isLoadingW2Data, setIsLoadingW2Data] = useState(false)
+  const [w2DataSource, setW2DataSource] = useState<string>('')
+
+  // Load W2 personal information when component mounts
+  useEffect(() => {
+    const loadW2PersonalInfo = async () => {
+      if (!taxReturn.id) return;
+      
+      setIsLoadingW2Data(true);
+      try {
+        console.log('🔍 [Personal Info] Loading W2 data for tax return:', taxReturn.id);
+        
+        const response = await fetch(`/api/tax-returns/${taxReturn.id}/form-1040`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ [Personal Info] Received 1040 data:', data);
+          
+          if (data.form1040Data?.personalInfo) {
+            const personalInfo = data.form1040Data.personalInfo;
+            console.log('✅ [Personal Info] Found W2 personal info:', personalInfo);
+            
+            setW2PersonalInfo(personalInfo);
+            setW2DataSource(personalInfo.sourceDocument || 'W2');
+            
+            // Auto-populate form with W2 data, overriding existing values
+            setFormData(prev => ({
+              ...prev,
+              firstName: personalInfo.firstName || prev.firstName,
+              lastName: personalInfo.lastName || prev.lastName,
+              ssn: personalInfo.ssn || prev.ssn,
+              address: personalInfo.address || prev.address,
+              city: personalInfo.city || prev.city,
+              state: personalInfo.state || prev.state,
+              zipCode: personalInfo.zipCode || prev.zipCode,
+            }));
+            
+            console.log('✅ [Personal Info] Auto-populated form with W2 data');
+          } else {
+            console.log('⚠️ [Personal Info] No W2 personal info found in 1040 data');
+          }
+        } else {
+          console.log('⚠️ [Personal Info] Failed to load 1040 data:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ [Personal Info] Error loading W2 data:', error);
+      } finally {
+        setIsLoadingW2Data(false);
+      }
+    };
+
+    loadW2PersonalInfo();
+  }, [taxReturn.id]);
 
   // Auto-save functionality with debouncing
   useEffect(() => {
@@ -198,14 +254,42 @@ export function PersonalInfoStep({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-6">
+        {/* W2 Data Source Alert */}
+        {isLoadingW2Data && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Loading personal information from your uploaded documents...
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {w2PersonalInfo && (
+          <Alert>
+            <FileText className="h-4 w-4" />
+            <AlertDescription>
+              Personal information has been automatically populated from your uploaded {w2DataSource} document. 
+              You can review and modify the information below if needed.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <User className="h-5 w-5" />
               <span>Personal Information</span>
+              {w2PersonalInfo && (
+                <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                  Auto-filled from {w2DataSource}
+                </span>
+              )}
             </CardTitle>
             <CardDescription>
-              Enter your personal details as they appear on your tax documents
+              {w2PersonalInfo 
+                ? "Information below was automatically extracted from your W2 document. Please review and update if necessary."
+                : "Enter your personal details as they appear on your tax documents"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -217,7 +301,11 @@ export function PersonalInfoStep({
                   value={formData.firstName}
                   onChange={(e) => handleChange("firstName", e.target.value)}
                   required
+                  className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
                 />
+                {w2PersonalInfo && (
+                  <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.firstName}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="lastName">Last Name *</Label>
@@ -226,7 +314,11 @@ export function PersonalInfoStep({
                   value={formData.lastName}
                   onChange={(e) => handleChange("lastName", e.target.value)}
                   required
+                  className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
                 />
+                {w2PersonalInfo && (
+                  <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.lastName}</p>
+                )}
               </div>
             </div>
             
@@ -239,7 +331,11 @@ export function PersonalInfoStep({
                 placeholder="000-00-0000"
                 maxLength={11}
                 required
+                className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
               />
+              {w2PersonalInfo && (
+                <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.ssn}</p>
+              )}
             </div>
             
             <div>
@@ -310,9 +406,19 @@ export function PersonalInfoStep({
 
         <Card>
           <CardHeader>
-            <CardTitle>Address Information</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              <span>Address Information</span>
+              {w2PersonalInfo && (
+                <span className="text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                  Auto-filled from {w2DataSource}
+                </span>
+              )}
+            </CardTitle>
             <CardDescription>
-              Enter your current address
+              {w2PersonalInfo 
+                ? "Address information was automatically extracted from your W2 document. Please review and update if necessary."
+                : "Enter your current address"
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -323,7 +429,11 @@ export function PersonalInfoStep({
                 value={formData.address}
                 onChange={(e) => handleChange("address", e.target.value)}
                 required
+                className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
               />
+              {w2PersonalInfo && (
+                <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.address}</p>
+              )}
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -334,7 +444,11 @@ export function PersonalInfoStep({
                   value={formData.city}
                   onChange={(e) => handleChange("city", e.target.value)}
                   required
+                  className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
                 />
+                {w2PersonalInfo && (
+                  <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.city}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="state">State *</Label>
@@ -345,7 +459,11 @@ export function PersonalInfoStep({
                   maxLength={2}
                   placeholder="CA"
                   required
+                  className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
                 />
+                {w2PersonalInfo && (
+                  <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.state}</p>
+                )}
               </div>
             </div>
             
@@ -358,7 +476,11 @@ export function PersonalInfoStep({
                 maxLength={10}
                 placeholder="12345"
                 required
+                className={w2PersonalInfo ? "bg-green-50 border-green-200" : ""}
               />
+              {w2PersonalInfo && (
+                <p className="text-xs text-green-600 mt-1">From W2: {w2PersonalInfo.zipCode}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -408,3 +530,4 @@ export function PersonalInfoStep({
     </form>
   )
 }
+
