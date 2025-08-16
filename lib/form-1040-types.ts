@@ -1,4 +1,5 @@
 
+
 // Form 1040 field definitions and types
 
 export interface Form1040Data {
@@ -15,6 +16,19 @@ export interface Form1040Data {
   state: string;
   zipCode: string;
   filingStatus: FilingStatus;
+  
+  // Personal Info from W2 (new field for tracking source)
+  personalInfo?: {
+    firstName: string;
+    lastName: string;
+    ssn: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    sourceDocument: string;
+    sourceDocumentId: string;
+  };
   
   // Dependents
   dependents: Dependent[];
@@ -117,6 +131,11 @@ export interface W2ToForm1040Mapping {
   medicareWages_to_medicare: (w2Data: any) => number;     // W2 Box 5 (informational)
   stateWages_to_stateReturn: (w2Data: any) => number;     // W2 Box 16 (for state return)
   stateTaxWithheld_to_stateReturn: (w2Data: any) => number; // W2 Box 17 (for state return)
+  
+  // Personal info mappings (new)
+  employeeName_to_personalInfo: (w2Data: any) => { firstName: string; lastName: string };
+  employeeSSN_to_personalInfo: (w2Data: any) => string;
+  employeeAddress_to_personalInfo: (w2Data: any) => { address: string; city: string; state: string; zipCode: string };
 }
 
 // Standard deduction amounts for 2023 tax year
@@ -162,3 +181,4 @@ export const CHILD_TAX_CREDIT_2023 = {
     [FilingStatus.QUALIFYING_SURVIVING_SPOUSE]: 400000
   }
 };
+
