@@ -55,8 +55,17 @@ export class W2ToForm1040Mapper {
                       actualW2Data.wagesAndTips || actualW2Data['wages_and_tips'];
     
     console.log('🔍 [W2 MAPPER] Found wages value:', wagesValue, 'type:', typeof wagesValue);
-    const wages = this.parseAmount(wagesValue);
+    let wages = this.parseAmount(wagesValue);
     console.log('🔍 [W2 MAPPER] Parsed wages amount:', wages);
+    
+    // OCR fallback if wages still not found
+    if (wages === 0 && actualW2Data.fullText) {
+      console.log('🔍 [W2 MAPPER] Wages not found in structured data, attempting OCR extraction...');
+      wages = this.extractWagesFromOCR(actualW2Data.fullText);
+      if (wages > 0) {
+        console.log('✅ [W2 MAPPER] Successfully extracted wages from OCR:', wages);
+      }
+    }
     
     if (wages > 0) {
       form1040Data.line1 = (form1040Data.line1 || 0) + wages;
@@ -235,6 +244,47 @@ export class W2ToForm1040Mapper {
     }
     
     console.log('🔍 [PARSE AMOUNT] Unable to parse value, returning 0');
+    return 0;
+  }
+
+  /**
+   * Extracts wages from OCR text using regex patterns for Box 1
+   */
+  private static extractWagesFromOCR(ocrText: string): number {
+    console.log('🔍 [W2 MAPPER OCR] Searching for wages in OCR text...');
+    
+    // Multiple regex patterns to match Box 1 wages
+    const wagePatterns = [
+      // Pattern: "1 Wages, tips, other compensation 161130.48"
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation\s+([\d,]+\.?\d*)/i,
+      // Pattern: "1. Wages, tips, other compensation: $161,130.48"
+      /\b1\.?\s*Wages[,\s]*tips[,\s]*other\s+compensation[:\s]+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "Box 1 161130.48" or "1 161130.48"
+      /\b(?:Box\s*)?1\s+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "Wages and tips 161130.48"
+      /Wages\s+and\s+tips\s+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "1 Wages, tips, other compensation" followed by amount on next line
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation[\s\n]+\$?([\d,]+\.?\d*)/i
+    ];
+
+    for (const pattern of wagePatterns) {
+      const match = ocrText.match(pattern);
+      if (match && match[1]) {
+        const wageString = match[1];
+        console.log('🔍 [W2 MAPPER OCR] Found wage match:', wageString, 'using pattern:', pattern.source);
+        
+        // Parse the amount
+        const cleanedAmount = wageString.replace(/[,$\s]/g, '');
+        const parsedAmount = parseFloat(cleanedAmount);
+        
+        if (!isNaN(parsedAmount) && parsedAmount > 0) {
+          console.log('✅ [W2 MAPPER OCR] Successfully parsed wages:', parsedAmount);
+          return parsedAmount;
+        }
+      }
+    }
+
+    console.log('⚠️ [W2 MAPPER OCR] No wages found in OCR text');
     return 0;
   }
 
