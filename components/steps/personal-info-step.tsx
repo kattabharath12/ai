@@ -81,6 +81,12 @@ export function PersonalInfoStep({
           const data = await response.json();
           console.log('✅ [Personal Info] Received 1040 data:', data);
           
+          // DEBUG: Check the structure of received data
+          console.log('🔍 [Personal Info DEBUG] Checking data structure:');
+          console.log('  - data.form1040Data exists:', !!data.form1040Data);
+          console.log('  - data.form1040Data.personalInfo exists:', !!data.form1040Data?.personalInfo);
+          console.log('  - Full form1040Data:', JSON.stringify(data.form1040Data, null, 2));
+          
           if (data.form1040Data?.personalInfo) {
             const personalInfo = data.form1040Data.personalInfo;
             console.log('✅ [Personal Info] Found W2 personal info:', personalInfo);
@@ -103,6 +109,57 @@ export function PersonalInfoStep({
             console.log('✅ [Personal Info] Auto-populated form with W2 data');
           } else {
             console.log('⚠️ [Personal Info] No W2 personal info found in 1040 data');
+            console.log('🔍 [Personal Info DEBUG] Available form1040Data keys:', Object.keys(data.form1040Data || {}));
+            console.log('🔍 [Personal Info DEBUG] Checking for individual fields:');
+            console.log('  - firstName:', data.form1040Data?.firstName);
+            console.log('  - lastName:', data.form1040Data?.lastName);
+            console.log('  - ssn:', data.form1040Data?.ssn);
+            console.log('  - address:', data.form1040Data?.address);
+            console.log('  - city:', data.form1040Data?.city);
+            console.log('  - state:', data.form1040Data?.state);
+            console.log('  - zipCode:', data.form1040Data?.zipCode);
+            
+            // FALLBACK: Check if individual fields from W2 are available even without personalInfo object
+            const hasIndividualW2Fields = !!(
+              data.form1040Data?.firstName || 
+              data.form1040Data?.lastName || 
+              data.form1040Data?.ssn || 
+              data.form1040Data?.address
+            );
+            
+            if (hasIndividualW2Fields) {
+              console.log('✅ [Personal Info] Found individual W2 fields, auto-populating form');
+              setW2DataSource('W2 (individual fields)');
+              
+              // Create a synthetic personalInfo object for display purposes
+              const syntheticPersonalInfo = {
+                firstName: data.form1040Data.firstName || '',
+                lastName: data.form1040Data.lastName || '',
+                ssn: data.form1040Data.ssn || '',
+                address: data.form1040Data.address || '',
+                city: data.form1040Data.city || '',
+                state: data.form1040Data.state || '',
+                zipCode: data.form1040Data.zipCode || '',
+                sourceDocument: 'W2',
+                sourceDocumentId: 'individual-fields'
+              };
+              
+              setW2PersonalInfo(syntheticPersonalInfo);
+              
+              // Auto-populate form with individual W2 fields
+              setFormData(prev => ({
+                ...prev,
+                firstName: data.form1040Data.firstName || prev.firstName,
+                lastName: data.form1040Data.lastName || prev.lastName,
+                ssn: data.form1040Data.ssn || prev.ssn,
+                address: data.form1040Data.address || prev.address,
+                city: data.form1040Data.city || prev.city,
+                state: data.form1040Data.state || prev.state,
+                zipCode: data.form1040Data.zipCode || prev.zipCode,
+              }));
+              
+              console.log('✅ [Personal Info] Auto-populated form with individual W2 fields');
+            }
           }
         } else {
           console.log('⚠️ [Personal Info] Failed to load 1040 data:', response.status);
