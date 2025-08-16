@@ -146,6 +146,16 @@ export class AzureDocumentIntelligenceService {
       }
     }
     
+    // OCR fallback for Box 1 wages if not found in structured fields
+    if (!w2Data.wages && baseData.fullText) {
+      console.log('🔍 [Azure DI] Wages not found in structured fields, attempting OCR extraction...');
+      const wagesFromOCR = this.extractWagesFromOCR(baseData.fullText as string);
+      if (wagesFromOCR > 0) {
+        console.log('✅ [Azure DI] Successfully extracted wages from OCR:', wagesFromOCR);
+        w2Data.wages = wagesFromOCR;
+      }
+    }
+    
     return w2Data;
   }
 
@@ -278,6 +288,47 @@ export class AzureDocumentIntelligenceService {
       const parsed = parseFloat(cleaned);
       return isNaN(parsed) ? 0 : parsed;
     }
+    return 0;
+  }
+
+  /**
+   * Extracts wages from OCR text using regex patterns for Box 1
+   */
+  private extractWagesFromOCR(ocrText: string): number {
+    console.log('🔍 [Azure DI OCR] Searching for wages in OCR text...');
+    
+    // Multiple regex patterns to match Box 1 wages
+    const wagePatterns = [
+      // Pattern: "1 Wages, tips, other compensation 161130.48"
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation\s+([\d,]+\.?\d*)/i,
+      // Pattern: "1. Wages, tips, other compensation: $161,130.48"
+      /\b1\.?\s*Wages[,\s]*tips[,\s]*other\s+compensation[:\s]+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "Box 1 161130.48" or "1 161130.48"
+      /\b(?:Box\s*)?1\s+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "Wages and tips 161130.48"
+      /Wages\s+and\s+tips\s+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "1 Wages, tips, other compensation" followed by amount on next line
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation[\s\n]+\$?([\d,]+\.?\d*)/i
+    ];
+
+    for (const pattern of wagePatterns) {
+      const match = ocrText.match(pattern);
+      if (match && match[1]) {
+        const wageString = match[1];
+        console.log('🔍 [Azure DI OCR] Found wage match:', wageString, 'using pattern:', pattern.source);
+        
+        // Parse the amount
+        const cleanedAmount = wageString.replace(/[,$\s]/g, '');
+        const parsedAmount = parseFloat(cleanedAmount);
+        
+        if (!isNaN(parsedAmount) && parsedAmount > 0) {
+          console.log('✅ [Azure DI OCR] Successfully parsed wages:', parsedAmount);
+          return parsedAmount;
+        }
+      }
+    }
+
+    console.log('⚠️ [Azure DI OCR] No wages found in OCR text');
     return 0;
   }
 
