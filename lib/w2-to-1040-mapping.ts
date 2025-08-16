@@ -64,15 +64,15 @@ export class W2ToForm1040Mapper {
 
     // Create personal info object for easy access
     const personalInfo = {
-      firstName: form1040Data.firstName,
-      lastName: form1040Data.lastName,
-      ssn: form1040Data.ssn,
-      address: form1040Data.address,
-      city: form1040Data.city,
-      state: form1040Data.state,
-      zipCode: form1040Data.zipCode,
+      firstName: form1040Data.firstName ?? '',
+      lastName: form1040Data.lastName ?? '',
+      ssn: form1040Data.ssn ?? '',
+      address: form1040Data.address ?? '',
+      city: form1040Data.city ?? '',
+      state: form1040Data.state ?? '',
+      zipCode: form1040Data.zipCode ?? '',
       sourceDocument: 'W2',
-      sourceDocumentId: actualW2Data.documentId || 'unknown'
+      sourceDocumentId: String(actualW2Data.documentId || 'unknown')
     };
 
     // Add personal info to the form data for easy access by frontend
