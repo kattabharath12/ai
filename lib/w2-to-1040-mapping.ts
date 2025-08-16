@@ -8,8 +8,10 @@ export class W2ToForm1040Mapper {
    */
   static mapW2ToForm1040(w2Data: any, existingForm1040?: Partial<Form1040Data>): Partial<Form1040Data> {
     console.log('🔍 [W2 MAPPER] Starting W2 to 1040 mapping...');
-    console.log('🔍 [W2 MAPPER] Input w2Data structure:', JSON.stringify(w2Data, null, 2));
-    console.log('🔍 [W2 MAPPER] Existing form1040 data:', JSON.stringify(existingForm1040, null, 2));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [W2 MAPPER] Input w2Data structure:', JSON.stringify(w2Data, null, 2));
+      console.log('🔍 [W2 MAPPER] Existing form1040 data:', JSON.stringify(existingForm1040, null, 2));
+    }
 
     const form1040Data: Partial<Form1040Data> = {
       ...existingForm1040,
@@ -160,7 +162,10 @@ export class W2ToForm1040Mapper {
       form1040Data.line37 = totalTax - totalPayments;
     }
 
-    console.log('✅ [W2 MAPPER] Mapping completed. Final form1040Data:', JSON.stringify(form1040Data, null, 2));
+    console.log('✅ [W2 MAPPER] Mapping completed successfully');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [W2 MAPPER] Final form1040Data:', JSON.stringify(form1040Data, null, 2));
+    }
     return form1040Data;
   }
 
