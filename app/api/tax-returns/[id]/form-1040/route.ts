@@ -82,8 +82,22 @@ export async function GET(
         // Try different data structure paths
         let w2DataToMap = extractedData.extractedData || extractedData;
         
-        console.log(`🔍 [1040 GET] Data to map to 1040:`, JSON.stringify(w2DataToMap, null, 2));
-        console.log(`🔍 [1040 GET] Current form1040Data before mapping:`, JSON.stringify(form1040Data, null, 2));
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔍 [1040 GET] Data to map to 1040:`, JSON.stringify(w2DataToMap, null, 2));
+          console.log(`🔍 [1040 GET] Current form1040Data before mapping:`, JSON.stringify(form1040Data, null, 2));
+        }
+        
+        // DEBUG: Check for personal info fields in the W2 data
+        console.log(`🔍 [1040 GET DEBUG] Checking W2 personal info fields:`);
+        console.log(`  - employeeName: ${w2DataToMap.employeeName}`);
+        console.log(`  - Employee?.Name: ${w2DataToMap.Employee?.Name}`);
+        console.log(`  - Employee.Name: ${w2DataToMap['Employee.Name']}`);
+        console.log(`  - employeeSSN: ${w2DataToMap.employeeSSN}`);
+        console.log(`  - Employee?.SSN: ${w2DataToMap.Employee?.SSN}`);
+        console.log(`  - Employee.SSN: ${w2DataToMap['Employee.SSN']}`);
+        console.log(`  - employeeAddress: ${w2DataToMap.employeeAddress}`);
+        console.log(`  - Employee?.Address: ${w2DataToMap.Employee?.Address}`);
+        console.log(`  - Employee.Address: ${w2DataToMap['Employee.Address']}`);
         
         // Map W2 data to 1040 form fields
         const mappedData = W2ToForm1040Mapper.mapW2ToForm1040(
@@ -91,12 +105,30 @@ export async function GET(
           form1040Data
         );
         
-        console.log(`🔍 [1040 GET] Mapped data from W2:`, JSON.stringify(mappedData, null, 2));
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔍 [1040 GET] Mapped data from W2:`, JSON.stringify(mappedData, null, 2));
+        }
+        
+        // DEBUG: Check if personalInfo was created in mappedData
+        if (mappedData.personalInfo) {
+          console.log(`✅ [1040 GET DEBUG] personalInfo was created:`, JSON.stringify(mappedData.personalInfo, null, 2));
+        } else {
+          console.log(`❌ [1040 GET DEBUG] personalInfo was NOT created in mappedData`);
+        }
         
         // Merge the mapped data
         form1040Data = { ...form1040Data, ...mappedData };
         
-        console.log(`🔍 [1040 GET] Form1040Data after merging:`, JSON.stringify(form1040Data, null, 2));
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`🔍 [1040 GET] Form1040Data after merging:`, JSON.stringify(form1040Data, null, 2));
+        }
+        
+        // DEBUG: Check if personalInfo exists in final form1040Data
+        if (form1040Data.personalInfo) {
+          console.log(`✅ [1040 GET DEBUG] personalInfo exists in final form1040Data:`, JSON.stringify(form1040Data.personalInfo, null, 2));
+        } else {
+          console.log(`❌ [1040 GET DEBUG] personalInfo is MISSING from final form1040Data`);
+        }
         
         // Create mapping summary
         const mappingSummary = W2ToForm1040Mapper.createMappingSummary(w2DataToMap);
@@ -114,7 +146,19 @@ export async function GET(
     }
 
     // Fill in basic info from tax return if not already populated
-    if (!form1040Data.firstName) {
+    // IMPORTANT: Only fill from taxReturn if we don't have W2 personal info
+    const hasW2PersonalInfo = form1040Data.personalInfo && (
+      form1040Data.personalInfo.firstName || 
+      form1040Data.personalInfo.lastName || 
+      form1040Data.personalInfo.ssn || 
+      form1040Data.personalInfo.address
+    );
+    
+    console.log(`🔍 [1040 GET DEBUG] hasW2PersonalInfo: ${hasW2PersonalInfo}`);
+    console.log(`🔍 [1040 GET DEBUG] form1040Data.firstName: ${form1040Data.firstName}`);
+    
+    if (!form1040Data.firstName && !hasW2PersonalInfo) {
+      console.log("🔍 [1040 GET] No W2 personal info found, filling from taxReturn data");
       form1040Data.firstName = taxReturn.firstName || '';
       form1040Data.lastName = taxReturn.lastName || '';
       form1040Data.ssn = taxReturn.ssn || '';
@@ -127,11 +171,63 @@ export async function GET(
       form1040Data.zipCode = taxReturn.zipCode || '';
       form1040Data.filingStatus = taxReturn.filingStatus as any;
       form1040Data.taxYear = taxReturn.taxYear;
+    } else if (hasW2PersonalInfo) {
+      console.log("✅ [1040 GET] W2 personal info exists, preserving it and ensuring top-level fields are set");
+      // Ensure top-level fields are set from W2 data if they exist
+      if (!form1040Data.firstName && form1040Data.personalInfo.firstName) {
+        form1040Data.firstName = form1040Data.personalInfo.firstName;
+      }
+      if (!form1040Data.lastName && form1040Data.personalInfo.lastName) {
+        form1040Data.lastName = form1040Data.personalInfo.lastName;
+      }
+      if (!form1040Data.ssn && form1040Data.personalInfo.ssn) {
+        form1040Data.ssn = form1040Data.personalInfo.ssn;
+      }
+      if (!form1040Data.address && form1040Data.personalInfo.address) {
+        form1040Data.address = form1040Data.personalInfo.address;
+      }
+      if (!form1040Data.city && form1040Data.personalInfo.city) {
+        form1040Data.city = form1040Data.personalInfo.city;
+      }
+      if (!form1040Data.state && form1040Data.personalInfo.state) {
+        form1040Data.state = form1040Data.personalInfo.state;
+      }
+      if (!form1040Data.zipCode && form1040Data.personalInfo.zipCode) {
+        form1040Data.zipCode = form1040Data.personalInfo.zipCode;
+      }
+      
+      // Set other required fields from taxReturn
+      form1040Data.filingStatus = form1040Data.filingStatus || taxReturn.filingStatus as any;
+      form1040Data.taxYear = form1040Data.taxYear || taxReturn.taxYear;
+    } else {
+      console.log("🔍 [1040 GET] Top-level firstName exists, filling missing fields from taxReturn");
+      // Fill in missing fields from taxReturn without overriding existing data
+      form1040Data.lastName = form1040Data.lastName || taxReturn.lastName || '';
+      form1040Data.ssn = form1040Data.ssn || taxReturn.ssn || '';
+      form1040Data.spouseFirstName = form1040Data.spouseFirstName || taxReturn.spouseFirstName || undefined;
+      form1040Data.spouseLastName = form1040Data.spouseLastName || taxReturn.spouseLastName || undefined;
+      form1040Data.spouseSSN = form1040Data.spouseSSN || taxReturn.spouseSsn || undefined;
+      form1040Data.address = form1040Data.address || taxReturn.address || '';
+      form1040Data.city = form1040Data.city || taxReturn.city || '';
+      form1040Data.state = form1040Data.state || taxReturn.state || '';
+      form1040Data.zipCode = form1040Data.zipCode || taxReturn.zipCode || '';
+      form1040Data.filingStatus = form1040Data.filingStatus || taxReturn.filingStatus as any;
+      form1040Data.taxYear = form1040Data.taxYear || taxReturn.taxYear;
     }
 
     console.log("✅ [1040 GET] Successfully retrieved 1040 form data");
-    console.log("🔍 [1040 GET] Final form1040Data being returned:", JSON.stringify(form1040Data, null, 2));
-    console.log("🔍 [1040 GET] W2 mapping data being returned:", JSON.stringify(w2MappingData, null, 2));
+    if (process.env.NODE_ENV === 'development') {
+      console.log("🔍 [1040 GET] Final form1040Data being returned:", JSON.stringify(form1040Data, null, 2));
+      console.log("🔍 [1040 GET] W2 mapping data being returned:", JSON.stringify(w2MappingData, null, 2));
+    }
+    
+    // FINAL DEBUG: Ensure personalInfo is preserved in the response
+    if (form1040Data.personalInfo) {
+      console.log("✅ [1040 GET FINAL] personalInfo is present in final response:", JSON.stringify(form1040Data.personalInfo, null, 2));
+    } else {
+      console.log("❌ [1040 GET FINAL] personalInfo is MISSING from final response!");
+      console.log("🔍 [1040 GET FINAL] Available keys in form1040Data:", Object.keys(form1040Data));
+    }
     
     return NextResponse.json({
       form1040Data,
