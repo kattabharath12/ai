@@ -353,35 +353,50 @@ export class AzureDocumentIntelligenceService {
   }
 
   /**
-   * Extracts personal information from OCR text using regex patterns
+   * Extracts personal information from OCR text using improved regex patterns
+   * Specifically designed for W-2 form OCR text patterns
    */
   private extractPersonalInfoFromOCR(ocrText: string): {
     name?: string;
     ssn?: string;
     address?: string;
   } {
-    console.log('🔍 [Azure DI OCR] Searching for personal info in OCR text...');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [Azure DI OCR] Searching for personal info in OCR text...');
+    }
     
     const personalInfo: { name?: string; ssn?: string; address?: string } = {};
     
-    // Extract employee name - look for patterns like "Employee: Name" or after "Employee information"
+    // Extract employee name - improved patterns for W-2 format
+    // Handles patterns like "e Employee's first name and initial Last name Michelle Hicks"
     const namePatterns = [
-      /Employee[:\s]+([A-Za-z\s]+?)(?:\n|SSN|Social|Address|$)/i,
-      /Employee\s+Name[:\s]+([A-Za-z\s]+?)(?:\n|SSN|Social|Address|$)/i,
-      /Name[:\s]+([A-Za-z\s]+?)(?:\n|SSN|Social|Address|$)/i
+      // Pattern for "e Employee's first name and initial Last name Michelle Hicks"
+      /e\s+Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\n|Employee's\s+address|$)/i,
+      // Pattern for "Employee's first name and initial Last name Michelle Hicks"
+      /Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\n|Employee's\s+address|$)/i,
+      // Fallback pattern for simpler formats
+      /Employee[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|$)/i,
+      // Additional fallback for "Employee Name:" format
+      /Employee\s+Name[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|$)/i
     ];
     
     for (const pattern of namePatterns) {
       const match = ocrText.match(pattern);
       if (match && match[1]) {
         personalInfo.name = match[1].trim();
-        console.log('🔍 [Azure DI OCR] Found employee name:', personalInfo.name);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 [Azure DI OCR] Found employee name:', personalInfo.name);
+        }
         break;
       }
     }
     
-    // Extract SSN - look for XXX-XX-XXXX pattern
+    // Extract SSN - enhanced patterns for W-2 format (keeping existing working patterns)
     const ssnPatterns = [
+      // W-2 specific pattern
+      /Employee's\s+social\s+security\s+number\s*\n(\d{3}-\d{2}-\d{4})/i,
+      /social\s+security\s+number\s*\n(\d{3}-\d{2}-\d{4})/i,
+      // Existing working patterns
       /SSN[:\s]*(\d{3}-\d{2}-\d{4})/i,
       /Social\s+Security[:\s]*(\d{3}-\d{2}-\d{4})/i,
       /(\d{3}-\d{2}-\d{4})/
@@ -391,22 +406,34 @@ export class AzureDocumentIntelligenceService {
       const match = ocrText.match(pattern);
       if (match && match[1]) {
         personalInfo.ssn = match[1];
-        console.log('🔍 [Azure DI OCR] Found employee SSN:', personalInfo.ssn);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 [Azure DI OCR] Found employee SSN:', personalInfo.ssn);
+        }
         break;
       }
     }
     
-    // Extract address - look for address patterns
+    // Extract address - improved patterns for W-2 format
+    // Handles "Employee's address and ZIP code" followed by multi-line address
     const addressPatterns = [
-      /Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|$)/i,
-      /Employee\s+Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|$)/i
+      // Primary pattern for "Employee's address and ZIP code" followed by address lines
+      /Employee's\s+address\s+and\s+ZIP\s+code\s*\n([^\n]+(?:\n[^\n]+)*?)(?:\n\s*\n|Employee's\s+social|Employer|$)/i,
+      // Alternative pattern with more flexible spacing and line breaks
+      /Employee's\s+address[^\n]*\n([^\n]+(?:\n[0-9A-Za-z][^\n]*)*?)(?:\n\s*\n|Employee's\s+social|Employer|$)/i,
+      // Fallback pattern for simpler address formats
+      /address\s+and\s+ZIP\s+code[^\n]*\n([^\n]+(?:\n[^\n]+)*?)(?:\n\s*\n|social\s+security|Employer|$)/i,
+      // Generic address pattern as last resort
+      /Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|$)/i
     ];
     
     for (const pattern of addressPatterns) {
       const match = ocrText.match(pattern);
       if (match && match[1]) {
-        personalInfo.address = match[1].trim().replace(/\n/g, ' ');
-        console.log('🔍 [Azure DI OCR] Found employee address:', personalInfo.address);
+        // Clean up the address: normalize whitespace and join lines with spaces
+        personalInfo.address = match[1].trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔍 [Azure DI OCR] Found employee address:', personalInfo.address);
+        }
         break;
       }
     }
