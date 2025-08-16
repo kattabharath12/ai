@@ -368,12 +368,14 @@ export class AzureDocumentIntelligenceService {
     const personalInfo: { name?: string; ssn?: string; address?: string } = {};
     
     // Extract employee name - improved patterns for W-2 format
-    // Handles patterns like "e Employee's first name and initial Last name Michelle Hicks"
+    // Handles patterns like "e/f Employee's name, address and ZIP code MICHAEL JACKSON" and "e Employee's first name and initial Last name Michelle Hicks"
     const namePatterns = [
+      // Pattern for "e/f Employee's name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST..."
+      /(?:e\/f|e\/f)\s+Employee's\s+name,\s+address\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)(?:\s+\d{3,4}|\n|$)/i,
       // Pattern for "e Employee's first name and initial Last name Michelle Hicks"
-      /e\s+Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\n|Employee's\s+address|$)/i,
-      // Pattern for "Employee's first name and initial Last name Michelle Hicks"
-      /Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\n|Employee's\s+address|$)/i,
+      /(?:e|e)\s+Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|$)/i,
+      // Pattern for "Employee's first name and initial Last name Michelle Hicks" (without prefix)
+      /Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|$)/i,
       // Fallback pattern for simpler formats
       /Employee[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|$)/i,
       // Additional fallback for "Employee Name:" format
@@ -414,8 +416,14 @@ export class AzureDocumentIntelligenceService {
     }
     
     // Extract address - improved patterns for W-2 format
-    // Handles "Employee's address and ZIP code" followed by multi-line address
+    // Handles address extraction from patterns like "MICHAEL JACKSON 1103 BERNARD ST APT 712 DENTON, TX 76201"
     const addressPatterns = [
+      // Pattern 1: Extract address after name in "e/f Employee's name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST..."
+      /(?:e\/f|e\/f)\s+Employee's\s+name,\s+address\s+and\s+ZIP\s+code\s+[A-Z][A-Z\s]+?\s+([0-9][^\n]*?)(?:\n|$)/i,
+      // Pattern 2: Extract address after name in multi-line format "Michelle Hicks 0121 Gary Islands..."
+      /(?:e|e)\s+Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+[A-Za-z\s]+?\s+([0-9][^\n]*?)(?:\n|$)/i,
+      // Pattern 3: Extract address from name line followed by additional address lines
+      /([A-Za-z\s]+)\s+([0-9][^\n]*?)(?:\n([A-Za-z\s]+[A-Z]{2}\s+\d{5}(?:-\d{4})?))?/i,
       // Primary pattern for "Employee's address and ZIP code" followed by address lines
       /Employee's\s+address\s+and\s+ZIP\s+code\s*\n([^\n]+(?:\n[^\n]+)*?)(?:\n\s*\n|Employee's\s+social|Employer|$)/i,
       // Alternative pattern with more flexible spacing and line breaks
@@ -449,16 +457,22 @@ export class AzureDocumentIntelligenceService {
     
     // Multiple regex patterns to match Box 1 wages
     const wagePatterns = [
+      // Pattern: "1 Wages, tips, other comp. 900.00" (abbreviated version)
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+comp\.\s+([\d,]+\.?\d*)/i,
       // Pattern: "1 Wages, tips, other compensation 161130.48"
       /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation\s+([\d,]+\.?\d*)/i,
       // Pattern: "1. Wages, tips, other compensation: $161,130.48"
       /\b1\.?\s*Wages[,\s]*tips[,\s]*other\s+compensation[:\s]+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "1. Wages, tips, other comp.: $900.00"
+      /\b1\.?\s*Wages[,\s]*tips[,\s]*other\s+comp\.[:\s]+\$?([\d,]+\.?\d*)/i,
       // Pattern: "Box 1 161130.48" or "1 161130.48"
       /\b(?:Box\s*)?1\s+\$?([\d,]+\.?\d*)/i,
       // Pattern: "Wages and tips 161130.48"
       /Wages\s+and\s+tips\s+\$?([\d,]+\.?\d*)/i,
       // Pattern: "1 Wages, tips, other compensation" followed by amount on next line
-      /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation[\s\n]+\$?([\d,]+\.?\d*)/i
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+compensation[\s\n]+\$?([\d,]+\.?\d*)/i,
+      // Pattern: "1 Wages, tips, other comp." followed by amount on next line
+      /\b1\s+Wages[,\s]*tips[,\s]*other\s+comp\.[\s\n]+\$?([\d,]+\.?\d*)/i
     ];
 
     for (const pattern of wagePatterns) {
