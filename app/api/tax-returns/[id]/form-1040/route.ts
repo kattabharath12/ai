@@ -174,25 +174,25 @@ export async function GET(
     } else if (hasW2PersonalInfo) {
       console.log("✅ [1040 GET] W2 personal info exists, preserving it and ensuring top-level fields are set");
       // Ensure top-level fields are set from W2 data if they exist
-      if (!form1040Data.firstName && form1040Data.personalInfo.firstName) {
+      if (!form1040Data.firstName && form1040Data.personalInfo?.firstName) {
         form1040Data.firstName = form1040Data.personalInfo.firstName;
       }
-      if (!form1040Data.lastName && form1040Data.personalInfo.lastName) {
+      if (!form1040Data.lastName && form1040Data.personalInfo?.lastName) {
         form1040Data.lastName = form1040Data.personalInfo.lastName;
       }
-      if (!form1040Data.ssn && form1040Data.personalInfo.ssn) {
+      if (!form1040Data.ssn && form1040Data.personalInfo?.ssn) {
         form1040Data.ssn = form1040Data.personalInfo.ssn;
       }
-      if (!form1040Data.address && form1040Data.personalInfo.address) {
+      if (!form1040Data.address && form1040Data.personalInfo?.address) {
         form1040Data.address = form1040Data.personalInfo.address;
       }
-      if (!form1040Data.city && form1040Data.personalInfo.city) {
+      if (!form1040Data.city && form1040Data.personalInfo?.city) {
         form1040Data.city = form1040Data.personalInfo.city;
       }
-      if (!form1040Data.state && form1040Data.personalInfo.state) {
+      if (!form1040Data.state && form1040Data.personalInfo?.state) {
         form1040Data.state = form1040Data.personalInfo.state;
       }
-      if (!form1040Data.zipCode && form1040Data.personalInfo.zipCode) {
+      if (!form1040Data.zipCode && form1040Data.personalInfo?.zipCode) {
         form1040Data.zipCode = form1040Data.personalInfo.zipCode;
       }
       
