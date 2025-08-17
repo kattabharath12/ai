@@ -395,7 +395,7 @@ export class AzureDocumentIntelligenceService {
       },
       {
         name: 'W2_COMBINED_NAME_ADDRESS',
-        pattern: /(?:e\/f|e\/f)\s+Employee's\s+name,\s+address\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)(?:\s+\d{3,4}|\n|$)/i,
+        pattern: /(?:e\/f)\s+Employee's\s+name,\s+address,?\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)\s+(\d+.*?)(?:\n|$)/i,
         example: 'e/f Employee\'s name, address and ZIP code MICHAEL JACKSON 1103...'
       },
       {
@@ -426,11 +426,19 @@ export class AzureDocumentIntelligenceService {
       if (match && match[1]) {
         console.log(`🔍 [Azure DI OCR] Name pattern matched: ${patternInfo.name}`);
         
-        // Handle split name format (first name + last name in separate groups)
-        if (match[2]) {
-          personalInfo.name = `${match[1].trim()} ${match[2].trim()}`.replace(/\s+/g, ' ');
-        } else {
+        // Special handling for W2_COMBINED_NAME_ADDRESS pattern
+        if (patternInfo.name === 'W2_COMBINED_NAME_ADDRESS' && match[2]) {
+          // For combined pattern, match[1] is name, match[2] is address
           personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
+          personalInfo.address = match[2].trim().replace(/\s+/g, ' ');
+          console.log('✅ [Azure DI OCR] Found employee address from combined pattern:', personalInfo.address);
+        } else {
+          // Handle split name format (first name + last name in separate groups)
+          if (match[2]) {
+            personalInfo.name = `${match[1].trim()} ${match[2].trim()}`.replace(/\s+/g, ' ');
+          } else {
+            personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
+          }
         }
         
         console.log('✅ [Azure DI OCR] Found employee name:', personalInfo.name);
@@ -583,6 +591,17 @@ export class AzureDocumentIntelligenceService {
 
     // Tier 1: Primary parsing patterns (most specific to least specific)
     const primaryPatterns = [
+      {
+        name: 'STREET_APT_CITY_STATE_ZIP',
+        pattern: /^(.+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)\s+(?:APT|APARTMENT|UNIT|SUITE|STE)?\s*\d*)\s+([A-Z][A-Z\s]*?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
+        example: '1103 BERNARD ST APT 712 DENTON, TX 76201',
+        extract: (match: RegExpMatchArray) => ({
+          street: match[1].trim(),
+          city: match[2].trim(),
+          state: match[3].toUpperCase(),
+          zipCode: match[4]
+        })
+      },
       {
         name: 'COMMA_SEPARATED_FULL',
         pattern: /^(.+?),\s*(.+?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
@@ -769,7 +788,16 @@ export class AzureDocumentIntelligenceService {
         console.log('✅ [Azure DI] Found ZIP code:', result.zipCode);
       }
 
-      // Extract state (2 uppercase letters)
+      // Extract state (2 uppercase letters) - with validation against valid US states
+      const validStates = new Set([
+        'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+        'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+        'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+        'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+        'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+        'DC', 'PR', 'VI', 'GU', 'AS', 'MP'
+      ]);
+      
       const statePatterns = [
         /\b([A-Z]{2})\s+\d{5}/,           // State before ZIP
         /,\s*([A-Z]{2})\s*$/,             // State at end
@@ -779,9 +807,9 @@ export class AzureDocumentIntelligenceService {
 
       for (const pattern of statePatterns) {
         const stateMatch = normalizedAddress.match(pattern);
-        if (stateMatch) {
+        if (stateMatch && validStates.has(stateMatch[1].toUpperCase())) {
           result.state = stateMatch[1].toUpperCase();
-          console.log('✅ [Azure DI] Found state:', result.state);
+          console.log('✅ [Azure DI] Found valid state:', result.state);
           break;
         }
       }
