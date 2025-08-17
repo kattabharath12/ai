@@ -47,16 +47,31 @@ export class W2ToForm1040Mapper {
       console.log('✅ [W2 MAPPER] Mapped SSN:', form1040Data.ssn);
     }
 
+    // Enhanced address mapping - use pre-parsed components if available, otherwise parse full address
     const employeeAddress = actualW2Data.employeeAddress || actualW2Data.Employee?.Address || actualW2Data['Employee.Address'];
-    if (employeeAddress) {
-      console.log('🔍 [W2 MAPPER] Mapping employee address from W2:', employeeAddress);
+    
+    // Check if address components are already parsed by Azure DI service
+    if (actualW2Data.employeeAddressStreet || actualW2Data.employeeCity || actualW2Data.employeeState || actualW2Data.employeeZipCode) {
+      console.log('🔍 [W2 MAPPER] Using pre-parsed address components from Azure DI service');
+      form1040Data.address = actualW2Data.employeeAddressStreet || '';
+      form1040Data.city = actualW2Data.employeeCity || '';
+      form1040Data.state = actualW2Data.employeeState || '';
+      form1040Data.zipCode = actualW2Data.employeeZipCode || '';
+      console.log('✅ [W2 MAPPER] Mapped pre-parsed address:', {
+        street: form1040Data.address,
+        city: form1040Data.city,
+        state: form1040Data.state,
+        zipCode: form1040Data.zipCode
+      });
+    } else if (employeeAddress) {
+      console.log('🔍 [W2 MAPPER] Parsing employee address from W2:', employeeAddress);
       const addressParts = this.parseAddress(employeeAddress);
       // Always use W2 data for address, overriding any existing data
       form1040Data.address = addressParts.street;
       form1040Data.city = addressParts.city;
       form1040Data.state = addressParts.state;
       form1040Data.zipCode = addressParts.zipCode;
-      console.log('✅ [W2 MAPPER] Mapped address:', {
+      console.log('✅ [W2 MAPPER] Mapped parsed address:', {
         street: form1040Data.address,
         city: form1040Data.city,
         state: form1040Data.state,
