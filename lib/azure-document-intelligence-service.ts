@@ -206,6 +206,26 @@ export class AzureDocumentIntelligenceService {
         console.log('✅ [Azure DI] Extracted employee address from OCR:', w2Data.employeeAddress);
       }
     }
+
+    // Enhanced address parsing - extract city, state, and zipCode from full address
+    if (w2Data.employeeAddress && typeof w2Data.employeeAddress === 'string') {
+      console.log('🔍 [Azure DI] Parsing address components from:', w2Data.employeeAddress);
+      const ocrText = typeof baseData.fullText === 'string' ? baseData.fullText : '';
+      const addressParts = this.extractAddressParts(w2Data.employeeAddress, ocrText);
+      
+      // Add parsed address components to W2 data
+      w2Data.employeeAddressStreet = addressParts.street;
+      w2Data.employeeCity = addressParts.city;
+      w2Data.employeeState = addressParts.state;
+      w2Data.employeeZipCode = addressParts.zipCode;
+      
+      console.log('✅ [Azure DI] Parsed address components:', {
+        street: w2Data.employeeAddressStreet,
+        city: w2Data.employeeCity,
+        state: w2Data.employeeState,
+        zipCode: w2Data.employeeZipCode
+      });
+    }
     
     // OCR fallback for Box 1 wages if not found in structured fields
     if (!w2Data.wages && baseData.fullText) {
@@ -463,6 +483,162 @@ export class AzureDocumentIntelligenceService {
     }
     
     return personalInfo;
+  }
+
+  /**
+   * Enhanced address parsing to extract city, state, and zipCode from full address string
+   * Also searches OCR text for additional state information like "State: TX"
+   */
+  private extractAddressParts(fullAddress: string, ocrText: string): {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  } {
+    console.log('🔍 [Azure DI] Parsing address parts from:', fullAddress);
+    
+    if (!fullAddress) {
+      return { street: '', city: '', state: '', zipCode: '' };
+    }
+
+    // Normalize whitespace and punctuation
+    const normalizedAddress = fullAddress.trim().replace(/\s+/g, ' ').replace(/,\s*,/g, ',');
+    
+    // Pattern 1: Try to extract ZIP code first (5 digits or 5+4 format)
+    const zipMatch = normalizedAddress.match(/\b(\d{5}(?:-\d{4})?)\b/);
+    let zipCode = zipMatch ? zipMatch[1] : '';
+    
+    // Pattern 2: Try to extract state (2 uppercase letters, possibly preceded by comma/space)
+    let state = '';
+    let stateMatch = normalizedAddress.match(/\b([A-Z]{2})\s*\d{5}/); // State before ZIP
+    if (!stateMatch) {
+      stateMatch = normalizedAddress.match(/,\s*([A-Z]{2})\s*$/); // State at end
+    }
+    if (!stateMatch) {
+      stateMatch = normalizedAddress.match(/\s([A-Z]{2})\s/); // State in middle
+    }
+    if (stateMatch) {
+      state = stateMatch[1];
+    }
+
+    // Fallback: Search OCR text for "State: XX" pattern if state not found in address
+    if (!state && ocrText) {
+      console.log('🔍 [Azure DI] State not found in address, searching OCR text...');
+      const ocrStateMatch = ocrText.match(/State:\s*([A-Z]{2})/i);
+      if (ocrStateMatch) {
+        state = ocrStateMatch[1].toUpperCase();
+        console.log('✅ [Azure DI] Found state in OCR text:', state);
+      }
+    }
+
+    // Pattern 3: Parse different address formats
+    let street = '';
+    let city = '';
+
+    // Parse different address formats based on comma structure
+    const commaParts = normalizedAddress.split(',').map(part => part.trim());
+    
+    if (commaParts.length >= 3) {
+      // Check if this is a special case like "315 AVENUE , APT 900, 78900"
+      const lastPart = commaParts[commaParts.length - 1];
+      const secondToLastPart = commaParts[commaParts.length - 2];
+      
+      // Check if last part is just a ZIP code and second-to-last is apartment info
+      const zipOnlyMatch = lastPart.match(/^\s*(\d{5}(?:-\d{4})?)\s*$/);
+      const aptMatch = secondToLastPart.match(/^(APT|APARTMENT|UNIT|SUITE|STE)\s+/i);
+      
+      if (zipOnlyMatch && aptMatch) {
+        // Format: "315 AVENUE , APT 900, 78900" - combine first parts as street
+        street = commaParts.slice(0, -1).join(', ');
+        zipCode = zipOnlyMatch[1];
+        console.log('✅ [Azure DI] Parsed 3-part street-apt-zip format');
+      } else {
+        // Format: "123 MAIN ST, DALLAS, TX 75201" (3+ parts with city and state)
+        const stateZipMatch = lastPart.match(/^([A-Z]{2})?\s*(\d{5}(?:-\d{4})?)?\s*$/);
+        
+        if (stateZipMatch) {
+          if (stateZipMatch[1]) state = stateZipMatch[1];
+          if (stateZipMatch[2]) zipCode = stateZipMatch[2];
+          
+          // Second to last part is city
+          city = commaParts[commaParts.length - 2];
+          
+          // Everything else is street
+          street = commaParts.slice(0, -2).join(', ');
+        } else {
+          // Fallback: assume last part is city, everything else is street
+          city = commaParts[commaParts.length - 1].replace(/\s*\b\d{5}(?:-\d{4})?\b\s*$/, '').replace(/\s*\b[A-Z]{2}\b\s*$/, '').trim();
+          street = commaParts.slice(0, -1).join(', ');
+        }
+        console.log('✅ [Azure DI] Parsed 3+ comma city-state format - Street:', street, 'City:', city);
+      }
+    } else if (commaParts.length === 2) {
+      // Two parts: could be "street, city state zip" or "street, zip" or "street apt, zip"
+      const secondPart = commaParts[1];
+      const cityStateZipMatch = secondPart.match(/^(.+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+      
+      if (cityStateZipMatch) {
+        // Format: "456 Oak Street, Austin TX 73301"
+        street = commaParts[0];
+        city = cityStateZipMatch[1];
+        state = cityStateZipMatch[2];
+        zipCode = cityStateZipMatch[3];
+        console.log('✅ [Azure DI] Parsed 2-part city-state-zip format');
+      } else {
+        // Check if second part is just a ZIP code
+        const zipOnlyMatch = secondPart.match(/^\s*(\d{5}(?:-\d{4})?)\s*$/);
+        if (zipOnlyMatch) {
+          // Format: "315 AVENUE , APT 900, 78900" - treat as street + zip
+          street = commaParts[0];
+          zipCode = zipOnlyMatch[1];
+          console.log('✅ [Azure DI] Parsed 2-part street-zip format');
+        } else {
+          // Check if second part contains apartment/suite info (common pattern)
+          const aptMatch = secondPart.match(/^(APT|APARTMENT|UNIT|SUITE|STE)\s+/i);
+          if (aptMatch) {
+            // Format: "315 AVENUE, APT 900" - combine as street
+            street = `${commaParts[0]}, ${secondPart}`;
+            console.log('✅ [Azure DI] Parsed 2-part street-apt format');
+          } else {
+            // Treat second part as city
+            street = commaParts[0];
+            city = secondPart.replace(/\s*\b\d{5}(?:-\d{4})?\b\s*$/, '').replace(/\s*\b[A-Z]{2}\b\s*$/, '').trim();
+            console.log('✅ [Azure DI] Parsed 2-part street-city format');
+          }
+        }
+      }
+    } else {
+      // Single part or no commas - try to extract ZIP and state
+      street = normalizedAddress.replace(/\s*\b\d{5}(?:-\d{4})?\b\s*$/, '').trim();
+      street = street.replace(/\s*\b[A-Z]{2}\s*$/, '').trim();
+      console.log('✅ [Azure DI] Parsed single part format - Street:', street);
+    }
+
+    // Format 3: Handle space-separated format like "123 MAIN ST DALLAS TX 75201"
+    if (!street && !city && normalizedAddress.includes(' ')) {
+      const spaceMatch = normalizedAddress.match(/^(.+?)\s+([A-Za-z\s]+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+      if (spaceMatch) {
+        street = spaceMatch[1].trim();
+        city = spaceMatch[2].trim();
+        state = spaceMatch[3];
+        zipCode = spaceMatch[4];
+        console.log('✅ [Azure DI] Parsed space-separated format');
+      }
+    }
+
+    // Clean up results
+    street = street.replace(/,\s*$/, '').trim(); // Remove trailing comma
+    city = city.replace(/,\s*$/, '').trim(); // Remove trailing comma
+    
+    const result = {
+      street: street || normalizedAddress, // Fallback to full address if parsing fails
+      city: city || '',
+      state: state || '',
+      zipCode: zipCode || ''
+    };
+
+    console.log('✅ [Azure DI] Final address parts:', result);
+    return result;
   }
 
   /**
