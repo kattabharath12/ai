@@ -387,7 +387,7 @@ export class AzureDocumentIntelligenceService {
     
     // Extract employee name - comprehensive patterns for W-2 format variations
     const namePatterns = [
-      // Primary W-2 patterns
+      // Primary W-2 patterns (most specific first)
       {
         name: 'W2_SPLIT_NAME',
         pattern: /(?:e\s+Employee's\s+first\s+name\s+and\s+initial\s+([A-Z][A-Z\s]+?)[\s\n]+Last\s+name\s+([A-Z][A-Z\s]+?)(?:\s+\d|\n|f\s+Employee's\s+address|$))/i,
@@ -397,6 +397,11 @@ export class AzureDocumentIntelligenceService {
         name: 'W2_COMBINED_NAME_ADDRESS',
         pattern: /(?:e\/f)\s+Employee's\s+name,\s+address,?\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)\s+(\d+.*?)(?:\n|$)/i,
         example: 'e/f Employee\'s name, address and ZIP code MICHAEL JACKSON 1103...'
+      },
+      {
+        name: 'W2_NAME_ADDRESS_INLINE',
+        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)\s+(\d+\s+[A-Za-z\s]+?(?:Apt\.?|Apartment|Unit|Suite|Ste\.?)\s*\d+)\s+([A-Za-z]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)(?:\s|$)/i,
+        example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands Apt. 691 Sandraport UT 35155-6840'
       },
       {
         name: 'W2_STANDARD_NAME',
@@ -432,6 +437,11 @@ export class AzureDocumentIntelligenceService {
           personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
           personalInfo.address = match[2].trim().replace(/\s+/g, ' ');
           console.log('✅ [Azure DI OCR] Found employee address from combined pattern:', personalInfo.address);
+        } else if (patternInfo.name === 'W2_NAME_ADDRESS_INLINE' && match[2] && match[3] && match[4] && match[5]) {
+          // For inline pattern: match[1] = name, match[2] = street, match[3] = city, match[4] = state, match[5] = zip
+          personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
+          personalInfo.address = `${match[2].trim()} ${match[3].trim()} ${match[4].trim()} ${match[5].trim()}`.replace(/\s+/g, ' ');
+          console.log('✅ [Azure DI OCR] Found employee address from inline pattern:', personalInfo.address);
         } else {
           // Handle split name format (first name + last name in separate groups)
           if (match[2]) {
@@ -518,6 +528,11 @@ export class AzureDocumentIntelligenceService {
         example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands...'
       },
       {
+        name: 'W2_INLINE_FULL_ADDRESS',
+        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+[A-Za-z\s]+?\s+(\d+[^A-Z]*?[A-Z][A-Za-z\s]+?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?)(?:\s|$)/i,
+        example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands Apt. 691 Sandraport UT 35155-6840'
+      },
+      {
         name: 'W2_ADDRESS_MULTILINE',
         pattern: /Employee's\s+address\s+and\s+ZIP\s+code\s*\n([^\n]+(?:\n[^\n]+)*?)(?=\n\s*\n|\nEmployee's\s+social|\nEmployer|\n[a-z]\s+Employee|\n\d+\s+|$)/i,
         example: 'Employee\'s address and ZIP code\n123 Main St\nAnytown TX 12345'
@@ -591,6 +606,17 @@ export class AzureDocumentIntelligenceService {
 
     // Tier 1: Primary parsing patterns (most specific to least specific)
     const primaryPatterns = [
+      {
+        name: 'INLINE_STREET_APT_CITY_STATE_ZIP',
+        pattern: /^(\d+\s+[A-Za-z\s]+?(?:St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Blvd|Boulevard|Ln|Lane|Ct|Court|Pl|Place|Way|Pkwy|Parkway|Cir|Circle|Islands|Hills|Park)\s+(?:Apt\.?|Apartment|Unit|Suite|Ste\.?)\s*\d+)\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
+        example: '0121 Gary Islands Apt. 691 Sandraport UT 35155-6840',
+        extract: (match: RegExpMatchArray) => ({
+          street: match[1].trim(),
+          city: match[2].trim(),
+          state: match[3].toUpperCase(),
+          zipCode: match[4]
+        })
+      },
       {
         name: 'STREET_APT_CITY_STATE_ZIP',
         pattern: /^(.+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)\s+(?:APT|APARTMENT|UNIT|SUITE|STE)?\s*\d*)\s+([A-Z][A-Z\s]*?),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i,
