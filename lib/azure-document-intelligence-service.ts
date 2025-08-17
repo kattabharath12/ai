@@ -370,6 +370,8 @@ export class AzureDocumentIntelligenceService {
     // Extract employee name - improved patterns for W-2 format
     // Handles patterns like "e/f Employee's name, address and ZIP code MICHAEL JACKSON" and "e Employee's first name and initial Last name Michelle Hicks"
     const namePatterns = [
+      // NEW: Pattern for split name format: "e Employee's first name and initial SAI KUMAR" + "Last name POTURI"
+      /(?:e\s+Employee's\s+first\s+name\s+and\s+initial\s+([A-Z][A-Z\s]+?)[\s\n]+Last\s+name\s+([A-Z][A-Z\s]+?)(?:\s+\d|\n|f\s+Employee's\s+address|$))/i,
       // Pattern for "e/f Employee's name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST..."
       /(?:e\/f|e\/f)\s+Employee's\s+name,\s+address\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)(?:\s+\d{3,4}|\n|$)/i,
       // Pattern for "e Employee's first name and initial Last name Michelle Hicks"
@@ -385,7 +387,14 @@ export class AzureDocumentIntelligenceService {
     for (const pattern of namePatterns) {
       const match = ocrText.match(pattern);
       if (match && match[1]) {
-        personalInfo.name = match[1].trim();
+        // Handle split name format (first name + last name in separate groups)
+        if (match[2]) {
+          // Concatenate first name and last name: "SAI KUMAR" + "POTURI" = "SAI KUMAR POTURI"
+          personalInfo.name = `${match[1].trim()} ${match[2].trim()}`.replace(/\s+/g, ' ');
+        } else {
+          // Single name group
+          personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
+        }
         if (process.env.NODE_ENV === 'development') {
           console.log('🔍 [Azure DI OCR] Found employee name:', personalInfo.name);
         }
@@ -395,9 +404,14 @@ export class AzureDocumentIntelligenceService {
     
     // Extract SSN - enhanced patterns for W-2 format (keeping existing working patterns)
     const ssnPatterns = [
+      // NEW: Pattern for "a Employee's social security number 4564564567" (without dashes)
+      /a\s+Employee's\s+social\s+security\s+number\s+(\d{9,10})/i,
       // W-2 specific pattern
       /Employee's\s+social\s+security\s+number\s*\n(\d{3}-\d{2}-\d{4})/i,
       /social\s+security\s+number\s*\n(\d{3}-\d{2}-\d{4})/i,
+      // Pattern for SSN without dashes on same line
+      /Employee's\s+social\s+security\s+number\s+(\d{9,10})/i,
+      /social\s+security\s+number\s+(\d{9,10})/i,
       // Existing working patterns
       /SSN[:\s]*(\d{3}-\d{2}-\d{4})/i,
       /Social\s+Security[:\s]*(\d{3}-\d{2}-\d{4})/i,
@@ -418,6 +432,8 @@ export class AzureDocumentIntelligenceService {
     // Extract address - improved patterns for W-2 format
     // Handles address extraction from patterns like "MICHAEL JACKSON 1103 BERNARD ST APT 712 DENTON, TX 76201"
     const addressPatterns = [
+      // NEW: Pattern for "f Employee's address and ZIP code 315 AVENUE , APT 900, 78900"
+      /f\s+Employee's\s+address\s+and\s+ZIP\s+code\s+([^\n]+?)(?:\n|a\s+Employee's\s+social|$)/i,
       // Pattern 1: Extract address after name in "e/f Employee's name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST..."
       /(?:e\/f|e\/f)\s+Employee's\s+name,\s+address\s+and\s+ZIP\s+code\s+[A-Z][A-Z\s]+?\s+([0-9][^\n]*?)(?:\n|$)/i,
       // Pattern 2: Extract address after name in multi-line format "Michelle Hicks 0121 Gary Islands..."
