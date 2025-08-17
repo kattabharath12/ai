@@ -266,6 +266,37 @@ export class AzureDocumentIntelligenceService {
       }
     }
     
+    // OCR fallback for personal info if not found in structured fields
+    if ((!data.recipientName || !data.recipientTIN || !data.recipientAddress || !data.payerName || !data.payerTIN) && baseData.fullText) {
+      console.log('🔍 [Azure DI] Some 1099 info missing from structured fields, attempting OCR extraction...');
+      const personalInfoFromOCR = this.extractPersonalInfoFromOCR(baseData.fullText as string);
+      
+      if (!data.recipientName && personalInfoFromOCR.name) {
+        data.recipientName = personalInfoFromOCR.name;
+        console.log('✅ [Azure DI] Extracted recipient name from OCR:', data.recipientName);
+      }
+      
+      if (!data.recipientTIN && personalInfoFromOCR.tin) {
+        data.recipientTIN = personalInfoFromOCR.tin;
+        console.log('✅ [Azure DI] Extracted recipient TIN from OCR:', data.recipientTIN);
+      }
+      
+      if (!data.recipientAddress && personalInfoFromOCR.address) {
+        data.recipientAddress = personalInfoFromOCR.address;
+        console.log('✅ [Azure DI] Extracted recipient address from OCR:', data.recipientAddress);
+      }
+      
+      if (!data.payerName && personalInfoFromOCR.payerName) {
+        data.payerName = personalInfoFromOCR.payerName;
+        console.log('✅ [Azure DI] Extracted payer name from OCR:', data.payerName);
+      }
+      
+      if (!data.payerTIN && personalInfoFromOCR.payerTIN) {
+        data.payerTIN = personalInfoFromOCR.payerTIN;
+        console.log('✅ [Azure DI] Extracted payer TIN from OCR:', data.payerTIN);
+      }
+    }
+    
     return data;
   }
 
@@ -291,6 +322,37 @@ export class AzureDocumentIntelligenceService {
       if (fields[azureFieldName]?.value !== undefined) {
         const value = fields[azureFieldName].value;
         data[mappedFieldName] = typeof value === 'number' ? value : this.parseAmount(value);
+      }
+    }
+    
+    // OCR fallback for personal info if not found in structured fields
+    if ((!data.recipientName || !data.recipientTIN || !data.recipientAddress || !data.payerName || !data.payerTIN) && baseData.fullText) {
+      console.log('🔍 [Azure DI] Some 1099-DIV info missing from structured fields, attempting OCR extraction...');
+      const personalInfoFromOCR = this.extractPersonalInfoFromOCR(baseData.fullText as string);
+      
+      if (!data.recipientName && personalInfoFromOCR.name) {
+        data.recipientName = personalInfoFromOCR.name;
+        console.log('✅ [Azure DI] Extracted recipient name from OCR:', data.recipientName);
+      }
+      
+      if (!data.recipientTIN && personalInfoFromOCR.tin) {
+        data.recipientTIN = personalInfoFromOCR.tin;
+        console.log('✅ [Azure DI] Extracted recipient TIN from OCR:', data.recipientTIN);
+      }
+      
+      if (!data.recipientAddress && personalInfoFromOCR.address) {
+        data.recipientAddress = personalInfoFromOCR.address;
+        console.log('✅ [Azure DI] Extracted recipient address from OCR:', data.recipientAddress);
+      }
+      
+      if (!data.payerName && personalInfoFromOCR.payerName) {
+        data.payerName = personalInfoFromOCR.payerName;
+        console.log('✅ [Azure DI] Extracted payer name from OCR:', data.payerName);
+      }
+      
+      if (!data.payerTIN && personalInfoFromOCR.payerTIN) {
+        data.payerTIN = personalInfoFromOCR.payerTIN;
+        console.log('✅ [Azure DI] Extracted payer TIN from OCR:', data.payerTIN);
       }
     }
     
@@ -323,6 +385,37 @@ export class AzureDocumentIntelligenceService {
       }
     }
     
+    // OCR fallback for personal info if not found in structured fields
+    if ((!data.recipientName || !data.recipientTIN || !data.recipientAddress || !data.payerName || !data.payerTIN) && baseData.fullText) {
+      console.log('🔍 [Azure DI] Some 1099-MISC info missing from structured fields, attempting OCR extraction...');
+      const personalInfoFromOCR = this.extractPersonalInfoFromOCR(baseData.fullText as string);
+      
+      if (!data.recipientName && personalInfoFromOCR.name) {
+        data.recipientName = personalInfoFromOCR.name;
+        console.log('✅ [Azure DI] Extracted recipient name from OCR:', data.recipientName);
+      }
+      
+      if (!data.recipientTIN && personalInfoFromOCR.tin) {
+        data.recipientTIN = personalInfoFromOCR.tin;
+        console.log('✅ [Azure DI] Extracted recipient TIN from OCR:', data.recipientTIN);
+      }
+      
+      if (!data.recipientAddress && personalInfoFromOCR.address) {
+        data.recipientAddress = personalInfoFromOCR.address;
+        console.log('✅ [Azure DI] Extracted recipient address from OCR:', data.recipientAddress);
+      }
+      
+      if (!data.payerName && personalInfoFromOCR.payerName) {
+        data.payerName = personalInfoFromOCR.payerName;
+        console.log('✅ [Azure DI] Extracted payer name from OCR:', data.payerName);
+      }
+      
+      if (!data.payerTIN && personalInfoFromOCR.payerTIN) {
+        data.payerTIN = personalInfoFromOCR.payerTIN;
+        console.log('✅ [Azure DI] Extracted payer TIN from OCR:', data.payerTIN);
+      }
+    }
+    
     return data;
   }
 
@@ -344,6 +437,37 @@ export class AzureDocumentIntelligenceService {
       if (fields[azureFieldName]?.value !== undefined) {
         const value = fields[azureFieldName].value;
         data[mappedFieldName] = typeof value === 'number' ? value : this.parseAmount(value);
+      }
+    }
+    
+    // OCR fallback for personal info if not found in structured fields
+    if ((!data.recipientName || !data.recipientTIN || !data.recipientAddress || !data.payerName || !data.payerTIN) && baseData.fullText) {
+      console.log('🔍 [Azure DI] Some 1099-NEC info missing from structured fields, attempting OCR extraction...');
+      const personalInfoFromOCR = this.extractPersonalInfoFromOCR(baseData.fullText as string);
+      
+      if (!data.recipientName && personalInfoFromOCR.name) {
+        data.recipientName = personalInfoFromOCR.name;
+        console.log('✅ [Azure DI] Extracted recipient name from OCR:', data.recipientName);
+      }
+      
+      if (!data.recipientTIN && personalInfoFromOCR.tin) {
+        data.recipientTIN = personalInfoFromOCR.tin;
+        console.log('✅ [Azure DI] Extracted recipient TIN from OCR:', data.recipientTIN);
+      }
+      
+      if (!data.recipientAddress && personalInfoFromOCR.address) {
+        data.recipientAddress = personalInfoFromOCR.address;
+        console.log('✅ [Azure DI] Extracted recipient address from OCR:', data.recipientAddress);
+      }
+      
+      if (!data.payerName && personalInfoFromOCR.payerName) {
+        data.payerName = personalInfoFromOCR.payerName;
+        console.log('✅ [Azure DI] Extracted payer name from OCR:', data.payerName);
+      }
+      
+      if (!data.payerTIN && personalInfoFromOCR.payerTIN) {
+        data.payerTIN = personalInfoFromOCR.payerTIN;
+        console.log('✅ [Azure DI] Extracted payer TIN from OCR:', data.payerTIN);
       }
     }
     
@@ -374,15 +498,39 @@ export class AzureDocumentIntelligenceService {
 
   /**
    * Extracts personal information from OCR text using comprehensive regex patterns
-   * Specifically designed for W-2 form OCR text patterns with enhanced fallback mechanisms
+   * Supports both W-2 and 1099 forms with automatic form type detection
+   * Routes to appropriate pattern sets based on detected form type
    */
   private extractPersonalInfoFromOCR(ocrText: string): {
     name?: string;
     ssn?: string;
     address?: string;
+    tin?: string;
+    payerName?: string;
+    payerTIN?: string;
+    payerAddress?: string;
   } {
     console.log('🔍 [Azure DI OCR] Searching for personal info in OCR text...');
     
+    // Detect form type to route to appropriate patterns
+    const formType = this.detectFormType(ocrText);
+    
+    if (formType === '1099') {
+      console.log('🔍 [Azure DI OCR] Routing to 1099 extraction patterns...');
+      const info1099 = this.extract1099InfoFromOCR(ocrText);
+      return {
+        name: info1099.name,
+        ssn: info1099.tin, // Map TIN to SSN field for compatibility
+        tin: info1099.tin,
+        address: info1099.address,
+        payerName: info1099.payerName,
+        payerTIN: info1099.payerTIN,
+        payerAddress: info1099.payerAddress
+      };
+    }
+    
+    // Default to W2 extraction (preserves existing functionality)
+    console.log('🔍 [Azure DI OCR] Using W2 extraction patterns (form type:', formType, ')...');
     const personalInfo: { name?: string; ssn?: string; address?: string } = {};
     
     // Extract employee name - comprehensive patterns for W-2 format variations
@@ -656,7 +804,16 @@ export class AzureDocumentIntelligenceService {
       }
     }
     
-    return personalInfo;
+    // Return W2 info with additional fields for compatibility
+    return {
+      name: personalInfo.name,
+      ssn: personalInfo.ssn,
+      address: personalInfo.address,
+      tin: personalInfo.ssn, // Map SSN to TIN field for 1099 compatibility
+      payerName: undefined, // Not applicable for W2
+      payerTIN: undefined, // Not applicable for W2
+      payerAddress: undefined // Not applicable for W2
+    };
   }
 
   /**
@@ -1032,6 +1189,239 @@ export class AzureDocumentIntelligenceService {
 
     console.log('⚠️ [Azure DI OCR] No wages found in OCR text');
     return 0;
+  }
+
+  /**
+   * Detects the form type from OCR text to route to appropriate pattern sets
+   * Returns 'W2', '1099', or 'UNKNOWN' based on form indicators
+   */
+  private detectFormType(ocrText: string): 'W2' | '1099' | 'UNKNOWN' {
+    console.log('🔍 [Azure DI] Detecting form type from OCR text...');
+    
+    const text = ocrText.toLowerCase();
+    
+    // W2 form indicators (check first as they're more specific)
+    const w2Indicators = [
+      'form w-2',
+      'form w2',
+      'wage and tax statement',
+      'employee\'s social security number',
+      'employer identification number',
+      'wages, tips, other compensation',
+      'federal income tax withheld',
+      'social security wages',
+      'medicare wages'
+    ];
+    
+    // 1099 form indicators
+    const form1099Indicators = [
+      'form 1099',
+      'form 1099-',
+      'payer\'s name',
+      'payer\'s federal identification number',
+      'recipient\'s identification number',
+      'recipient\'s name',
+      'miscellaneous income',
+      'interest income',
+      'dividend income',
+      'nonemployee compensation'
+    ];
+    
+    // Check for W2 indicators first
+    for (const indicator of w2Indicators) {
+      if (text.includes(indicator)) {
+        console.log('✅ [Azure DI] Detected W2 form based on indicator:', indicator);
+        return 'W2';
+      }
+    }
+    
+    // Check for 1099 indicators
+    for (const indicator of form1099Indicators) {
+      if (text.includes(indicator)) {
+        console.log('✅ [Azure DI] Detected 1099 form based on indicator:', indicator);
+        return '1099';
+      }
+    }
+    
+    console.log('⚠️ [Azure DI] Could not determine form type, defaulting to UNKNOWN');
+    return 'UNKNOWN';
+  }
+
+  // === 1099 PATTERNS ===
+  /**
+   * Extracts personal information from 1099 OCR text using comprehensive regex patterns
+   * Specifically designed for 1099 form OCR text patterns with enhanced fallback mechanisms
+   */
+  private extract1099InfoFromOCR(ocrText: string): {
+    name?: string;
+    tin?: string;
+    address?: string;
+    payerName?: string;
+    payerTIN?: string;
+    payerAddress?: string;
+  } {
+    console.log('🔍 [Azure DI OCR] Searching for 1099 info in OCR text...');
+    
+    const info1099: { 
+      name?: string; 
+      tin?: string; 
+      address?: string;
+      payerName?: string;
+      payerTIN?: string;
+      payerAddress?: string;
+    } = {};
+    
+    // === RECIPIENT NAME PATTERNS ===
+    const recipientNamePatterns = [
+      // RECIPIENT_NAME_BASIC: Basic recipient name extraction
+      {
+        name: 'RECIPIENT_NAME_BASIC',
+        pattern: /(?:RECIPIENT'S?\s+NAME|Recipient'?s?\s+name)[:\s]+([A-Za-z\s]+?)(?:\s+\d|\n|RECIPIENT'S?\s+|Recipient'?s?\s+|TIN|address|street|$)/i,
+        example: "RECIPIENT'S NAME JOHN DOE"
+      },
+      {
+        name: 'RECIPIENT_NAME_MULTILINE',
+        pattern: /(?:RECIPIENT'S?\s+NAME|Recipient'?s?\s+name)\s*\n([A-Za-z\s]+?)(?:\n|$)/i,
+        example: "RECIPIENT'S NAME\nJOHN DOE"
+      },
+      {
+        name: 'RECIPIENT_SIMPLE',
+        pattern: /Recipient[:\s]+([A-Za-z\s]+?)(?:\s+\d|\n|TIN|address|street|$)/i,
+        example: "Recipient: JANE SMITH"
+      }
+    ];
+    
+    for (const patternInfo of recipientNamePatterns) {
+      const match = ocrText.match(patternInfo.pattern);
+      if (match && match[1]) {
+        console.log(`🔍 [Azure DI OCR] Recipient name pattern matched: ${patternInfo.name}`);
+        info1099.name = match[1].trim().replace(/\s+/g, ' ');
+        console.log('✅ [Azure DI OCR] Found recipient name:', info1099.name);
+        break;
+      }
+    }
+    
+    // === RECIPIENT ADDRESS PATTERNS ===
+    const recipientAddressPatterns = [
+      // RECIPIENT_FULL_ADDRESS: Complete recipient address extraction
+      {
+        name: 'RECIPIENT_FULL_ADDRESS',
+        pattern: /(?:RECIPIENT'S?\s+ADDRESS|Recipient'?s?\s+address)[:\s]*\n?([A-Za-z0-9\s,.-]+?(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Boulevard|Blvd|Lane|Ln|Court|Ct|Place|Pl|Way|Parkway|Pkwy|Circle|Cir)\s*[A-Za-z0-9\s,.-]*?[A-Z]{2}\s+\d{5}(?:-\d{4})?)/i,
+        example: "RECIPIENT'S ADDRESS\n123 Main Street\nAnytown, CA 90210"
+      },
+      // RECIPIENT_SIMPLE_MULTILINE: Simplified multiline extraction
+      {
+        name: 'RECIPIENT_SIMPLE_MULTILINE',
+        pattern: /(?:RECIPIENT'S?\s+ADDRESS|Recipient'?s?\s+address)\s*\n([A-Za-z0-9\s,.-]+?)(?:\n\n|PAYER|Payer|$)/i,
+        example: "RECIPIENT'S ADDRESS\n456 Oak Ave\nSomewhere, TX 75001"
+      },
+      {
+        name: 'RECIPIENT_ADDRESS_INLINE',
+        pattern: /(?:RECIPIENT'S?\s+ADDRESS|Recipient'?s?\s+address)[:\s]+([A-Za-z0-9\s,.-]+?[A-Z]{2}\s+\d{5}(?:-\d{4})?)/i,
+        example: "RECIPIENT'S ADDRESS: 789 Pine St, Elsewhere, FL 33101"
+      }
+    ];
+    
+    for (const patternInfo of recipientAddressPatterns) {
+      const match = ocrText.match(patternInfo.pattern);
+      if (match && match[1]) {
+        console.log(`🔍 [Azure DI OCR] Recipient address pattern matched: ${patternInfo.name}`);
+        info1099.address = match[1].trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
+        console.log('✅ [Azure DI OCR] Found recipient address:', info1099.address);
+        break;
+      }
+    }
+    
+    // === RECIPIENT TIN PATTERNS ===
+    const recipientTINPatterns = [
+      {
+        name: 'RECIPIENT_TIN_LABELED',
+        pattern: /(?:RECIPIENT'S?\s+(?:TIN|IDENTIFICATION\s+NUMBER)|Recipient'?s?\s+(?:TIN|identification\s+number))[:\s]*(\d{3}-\d{2}-\d{4}|\d{2}-\d{7}|\d{9})/i,
+        example: "RECIPIENT'S TIN: 123-45-6789"
+      },
+      {
+        name: 'RECIPIENT_SSN',
+        pattern: /(?:RECIPIENT'S?\s+(?:SSN|SOCIAL\s+SECURITY)|Recipient'?s?\s+(?:SSN|social\s+security))[:\s]*(\d{3}-\d{2}-\d{4}|\d{9})/i,
+        example: "RECIPIENT'S SSN: 123-45-6789"
+      }
+    ];
+    
+    for (const patternInfo of recipientTINPatterns) {
+      const match = ocrText.match(patternInfo.pattern);
+      if (match && match[1]) {
+        console.log(`🔍 [Azure DI OCR] Recipient TIN pattern matched: ${patternInfo.name}`);
+        info1099.tin = match[1];
+        console.log('✅ [Azure DI OCR] Found recipient TIN:', info1099.tin);
+        break;
+      }
+    }
+    
+    // === PAYER INFORMATION PATTERNS ===
+    const payerInfoPatterns = [
+      // PAYER_INFO_MULTILINE: Payer information extraction
+      {
+        name: 'PAYER_INFO_MULTILINE',
+        pattern: /(?:PAYER'S?\s+NAME|Payer'?s?\s+name)[:\s]*\n?([A-Za-z\s&.,'-]+?)(?:\n|$)[\s\S]*?(?:PAYER'S?\s+(?:TIN|FEDERAL\s+IDENTIFICATION)|Payer'?s?\s+(?:TIN|federal\s+identification))[:\s]*(\d{2}-\d{7}|\d{9})/i,
+        example: "PAYER'S NAME\nACME CORPORATION\nPAYER'S TIN: 12-3456789"
+      },
+      {
+        name: 'PAYER_NAME_SIMPLE',
+        pattern: /(?:PAYER'S?\s+NAME|Payer'?s?\s+name)[:\s]+([A-Za-z\s&.,'-]+?)(?:\s+\d|\n|PAYER'S?\s+|Payer'?s?\s+|$)/i,
+        example: "PAYER'S NAME: ACME CORPORATION"
+      },
+      {
+        name: 'PAYER_TIN_SIMPLE',
+        pattern: /(?:PAYER'S?\s+(?:TIN|FEDERAL\s+IDENTIFICATION)|Payer'?s?\s+(?:TIN|federal\s+identification))[:\s]*(\d{2}-\d{7}|\d{9})/i,
+        example: "PAYER'S TIN: 12-3456789"
+      }
+    ];
+    
+    for (const patternInfo of payerInfoPatterns) {
+      const match = ocrText.match(patternInfo.pattern);
+      if (match) {
+        console.log(`🔍 [Azure DI OCR] Payer info pattern matched: ${patternInfo.name}`);
+        
+        if (patternInfo.name === 'PAYER_INFO_MULTILINE' && match[1] && match[2]) {
+          info1099.payerName = match[1].trim().replace(/\s+/g, ' ');
+          info1099.payerTIN = match[2];
+          console.log('✅ [Azure DI OCR] Found payer name and TIN:', info1099.payerName, info1099.payerTIN);
+        } else if (patternInfo.name === 'PAYER_NAME_SIMPLE' && match[1]) {
+          info1099.payerName = match[1].trim().replace(/\s+/g, ' ');
+          console.log('✅ [Azure DI OCR] Found payer name:', info1099.payerName);
+        } else if (patternInfo.name === 'PAYER_TIN_SIMPLE' && match[1]) {
+          info1099.payerTIN = match[1];
+          console.log('✅ [Azure DI OCR] Found payer TIN:', info1099.payerTIN);
+        }
+        
+        if (patternInfo.name === 'PAYER_INFO_MULTILINE') break; // Complete match, no need to continue
+      }
+    }
+    
+    // === PAYER ADDRESS PATTERNS ===
+    const payerAddressPatterns = [
+      {
+        name: 'PAYER_ADDRESS_MULTILINE',
+        pattern: /(?:PAYER'S?\s+ADDRESS|Payer'?s?\s+address)\s*\n([A-Za-z0-9\s,.-]+?)(?:\n\n|RECIPIENT|Recipient|$)/i,
+        example: "PAYER'S ADDRESS\n100 Business Blvd\nCorporate City, NY 10001"
+      },
+      {
+        name: 'PAYER_ADDRESS_INLINE',
+        pattern: /(?:PAYER'S?\s+ADDRESS|Payer'?s?\s+address)[:\s]+([A-Za-z0-9\s,.-]+?[A-Z]{2}\s+\d{5}(?:-\d{4})?)/i,
+        example: "PAYER'S ADDRESS: 100 Business Blvd, Corporate City, NY 10001"
+      }
+    ];
+    
+    for (const patternInfo of payerAddressPatterns) {
+      const match = ocrText.match(patternInfo.pattern);
+      if (match && match[1]) {
+        console.log(`🔍 [Azure DI OCR] Payer address pattern matched: ${patternInfo.name}`);
+        info1099.payerAddress = match[1].trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
+        console.log('✅ [Azure DI OCR] Found payer address:', info1099.payerAddress);
+        break;
+      }
+    }
+    
+    return info1099;
   }
 
   async processW2Document(documentPathOrBuffer: string | Buffer): Promise<ExtractedFieldData> {
