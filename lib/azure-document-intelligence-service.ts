@@ -386,43 +386,83 @@ export class AzureDocumentIntelligenceService {
     const personalInfo: { name?: string; ssn?: string; address?: string } = {};
     
     // Extract employee name - comprehensive patterns for W-2 format variations
+    // Ordered from most specific to least specific to prevent conflicts
     const namePatterns = [
-      // Primary W-2 patterns (most specific first)
+      // Tier 1: W-2 specific labeled patterns (highest priority to avoid false matches)
       {
-        name: 'W2_SPLIT_NAME',
-        pattern: /(?:e\s+Employee's\s+first\s+name\s+and\s+initial\s+([A-Z][A-Z\s]+?)[\s\n]+Last\s+name\s+([A-Z][A-Z\s]+?)(?:\s+\d|\n|f\s+Employee's\s+address|$))/i,
+        name: 'W2_COMBINED_NAME_ADDRESS_ENHANCED',
+        pattern: /(?:e\/f)\s+Employee's\s+name,?\s+address,?\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)\s+(\d+.*?)(?:\n|$)/i,
+        example: 'e/f Employee\'s name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST APT 712 DENTON, TX 76201'
+      },
+      {
+        name: 'W2_NAME_ADDRESS_INLINE_ENHANCED',
+        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)\s+(\d+\s+[A-Za-z\s]+?(?:Apt\.?|Apartment|Unit|Suite|Ste\.?|APT|APARTMENT|UNIT|SUITE|STE)\s*\d+)\s+([A-Za-z\s]+?)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)(?:\s|$)/i,
+        example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands Apt. 691 Sandraport UT 35155-6840'
+      },
+      
+      // Tier 2: Most specific combined name+address patterns (standalone formats)
+      {
+        name: 'COMBINED_NAME_ADDRESS_SIMPLE',
+        pattern: /\b([A-Z][A-Z\s]+?)\s+(\d+\s+[A-Z][A-Z\s]+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)\s+(?:APT|APARTMENT|UNIT|SUITE|STE)?\s*\d*\s+[A-Z][A-Z\s]*?,?\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b/i,
+        example: 'MICHAEL JACKSON 1103 BERNARD ST APT 712 DENTON, TX 76201'
+      },
+      {
+        name: 'SIMPLE_NAME_ADDRESS',
+        pattern: /\b([A-Z][A-Z\s]+?)\s+(\d+\s+[A-Z][A-Z\s]+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)(?:\s+(?:APT|APARTMENT|UNIT|SUITE|STE)\s*[A-Z0-9]+)?)\b/i,
+        example: 'JOHN SMITH 123 MAIN ST APT 4B'
+      },
+      
+      // Tier 3: Standard W-2 patterns with enhanced matching
+      {
+        name: 'W2_SPLIT_NAME_ENHANCED',
+        pattern: /(?:e\s+Employee's\s+first\s+name\s+and\s+initial\s+([A-Z][A-Z\s]+?)[\s\n]+Last\s+name\s+([A-Z][A-Z\s]+?)(?:\s+\d|\n|f\s+Employee's\s+address|Employee's\s+address|$))/i,
         example: 'e Employee\'s first name and initial SAI KUMAR Last name POTURI'
       },
       {
-        name: 'W2_COMBINED_NAME_ADDRESS',
-        pattern: /(?:e\/f)\s+Employee's\s+name,\s+address,?\s+and\s+ZIP\s+code\s+([A-Z][A-Z\s]+?)\s+(\d+.*?)(?:\n|$)/i,
-        example: 'e/f Employee\'s name, address and ZIP code MICHAEL JACKSON 1103...'
-      },
-      {
-        name: 'W2_NAME_ADDRESS_INLINE',
-        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)\s+(\d+\s+[A-Za-z\s]+?(?:Apt\.?|Apartment|Unit|Suite|Ste\.?)\s*\d+)\s+([A-Za-z]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)(?:\s|$)/i,
-        example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands Apt. 691 Sandraport UT 35155-6840'
-      },
-      {
-        name: 'W2_STANDARD_NAME',
-        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|$)/i,
+        name: 'W2_STANDARD_NAME_ENHANCED',
+        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|f\s+Employee's\s+address|$)/i,
         example: 'e Employee\'s first name and initial Last name Michelle Hicks'
       },
       {
-        name: 'W2_SIMPLE_NAME',
-        pattern: /Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|$)/i,
+        name: 'W2_SIMPLE_NAME_ENHANCED',
+        pattern: /Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|f\s+Employee's\s+address|$)/i,
         example: 'Employee\'s first name and initial Last name Michelle Hicks'
       },
-      // Fallback patterns
+      
+      // Tier 3: Alternative W-2 format patterns
       {
-        name: 'GENERIC_EMPLOYEE',
-        pattern: /Employee[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|$)/i,
+        name: 'W2_NAME_FIELD_VARIANT',
+        pattern: /(?:Employee's\s+name|Employee\s+name)[:\s]+([A-Za-z\s]+?)(?:\s+\d|\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|$)/i,
+        example: 'Employee\'s name: John Doe'
+      },
+      {
+        name: 'W2_RECIPIENT_NAME',
+        pattern: /(?:Recipient's?\s+name|Recipient)[:\s]+([A-Za-z\s]+?)(?:\s+\d|\n|address|social|SSN|Social|Address|$)/i,
+        example: 'Recipient name: Jane Smith'
+      },
+      
+      // Tier 4: Generic fallback patterns (lowest priority)
+      {
+        name: 'GENERIC_EMPLOYEE_ENHANCED',
+        pattern: /Employee[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|Employer|$)/i,
         example: 'Employee: John Doe'
       },
       {
-        name: 'EMPLOYEE_NAME_LABEL',
-        pattern: /Employee\s+Name[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|$)/i,
+        name: 'EMPLOYEE_NAME_LABEL_ENHANCED',
+        pattern: /Employee\s+Name[:\s]+([A-Za-z\s]+?)(?:\n|Employee's\s+address|Employee's\s+social|SSN|Social|Address|Employer|$)/i,
         example: 'Employee Name: John Doe'
+      },
+      
+      // Tier 5: Last resort patterns for edge cases
+      {
+        name: 'NAME_BEFORE_ADDRESS_FALLBACK',
+        pattern: /\b([A-Z][A-Z\s]{2,30}?)\s+(?=\d+\s+[A-Z])/,
+        example: 'SARAH JOHNSON 456 Oak Street'
+      },
+      {
+        name: 'CAPITALIZED_NAME_FALLBACK',
+        pattern: /\b([A-Z][A-Z\s]{8,40}?)\s+(?=Employee's\s+address|address|social|SSN|\d{3}-\d{2}-\d{4})/i,
+        example: 'ROBERT WILLIAMS Employee\'s address'
       }
     ];
     
@@ -431,24 +471,25 @@ export class AzureDocumentIntelligenceService {
       if (match && match[1]) {
         console.log(`🔍 [Azure DI OCR] Name pattern matched: ${patternInfo.name}`);
         
-        // Special handling for W2_COMBINED_NAME_ADDRESS pattern
-        if (patternInfo.name === 'W2_COMBINED_NAME_ADDRESS' && match[2]) {
-          // For combined pattern, match[1] is name, match[2] is address
+        // Special handling for combined name+address patterns
+        if ((patternInfo.name === 'COMBINED_NAME_ADDRESS_SIMPLE' || 
+             patternInfo.name === 'SIMPLE_NAME_ADDRESS' ||
+             patternInfo.name === 'W2_COMBINED_NAME_ADDRESS_ENHANCED') && match[2]) {
+          // For combined patterns, match[1] is name, match[2] is address
           personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
           personalInfo.address = match[2].trim().replace(/\s+/g, ' ');
           console.log('✅ [Azure DI OCR] Found employee address from combined pattern:', personalInfo.address);
-        } else if (patternInfo.name === 'W2_NAME_ADDRESS_INLINE' && match[2] && match[3] && match[4] && match[5]) {
+        } else if (patternInfo.name === 'W2_NAME_ADDRESS_INLINE_ENHANCED' && match[2] && match[3] && match[4] && match[5]) {
           // For inline pattern: match[1] = name, match[2] = street, match[3] = city, match[4] = state, match[5] = zip
           personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
           personalInfo.address = `${match[2].trim()} ${match[3].trim()} ${match[4].trim()} ${match[5].trim()}`.replace(/\s+/g, ' ');
           console.log('✅ [Azure DI OCR] Found employee address from inline pattern:', personalInfo.address);
-        } else {
+        } else if (patternInfo.name === 'W2_SPLIT_NAME_ENHANCED' && match[2]) {
           // Handle split name format (first name + last name in separate groups)
-          if (match[2]) {
-            personalInfo.name = `${match[1].trim()} ${match[2].trim()}`.replace(/\s+/g, ' ');
-          } else {
-            personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
-          }
+          personalInfo.name = `${match[1].trim()} ${match[2].trim()}`.replace(/\s+/g, ' ');
+        } else {
+          // Standard single-group name extraction
+          personalInfo.name = match[1].trim().replace(/\s+/g, ' ');
         }
         
         console.log('✅ [Azure DI OCR] Found employee name:', personalInfo.name);
@@ -511,46 +552,96 @@ export class AzureDocumentIntelligenceService {
     }
     
     // Extract address - comprehensive patterns for W-2 format variations
+    // Ordered from most specific to least specific to prevent conflicts
     const addressPatterns = [
+      // Tier 1: Most specific address patterns (highest priority)
       {
-        name: 'W2_ADDRESS_WITH_PREFIX',
-        pattern: /f\s+Employee's\s+address\s+and\s+ZIP\s+code\s+([^\n]+?)(?:\n|a\s+Employee's\s+social|$)/i,
+        name: 'STANDALONE_FULL_ADDRESS_WITH_UNIT',
+        pattern: /\b(\d+\s+[A-Z][A-Z\s]+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)\s+(?:APT|APARTMENT|UNIT|SUITE|STE)\s*\d+\s+[A-Z][A-Z\s]*?,?\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b/i,
+        example: '1103 BERNARD ST APT 712 DENTON, TX 76201'
+      },
+      {
+        name: 'STANDALONE_FULL_ADDRESS_SIMPLE',
+        pattern: /\b(\d+\s+[A-Z][A-Z\s]+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)\s+[A-Z][A-Z\s]*?,?\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b/i,
+        example: '123 MAIN ST DALLAS, TX 75201'
+      },
+      {
+        name: 'PO_BOX_FULL_ADDRESS',
+        pattern: /\b(P\.?O\.?\s+BOX\s+\d+\s+[A-Z][A-Z\s]*?,?\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b/i,
+        example: 'P.O. BOX 1234 HOUSTON, TX 77001'
+      },
+      {
+        name: 'RURAL_ROUTE_FULL_ADDRESS',
+        pattern: /\b(RR\s+\d+\s+BOX\s+\d+\s+[A-Z][A-Z\s]*?,?\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)\b/i,
+        example: 'RR 2 BOX 123 SMALLTOWN, TX 75001'
+      },
+      
+      // Tier 2: W-2 specific address patterns
+      {
+        name: 'W2_ADDRESS_WITH_PREFIX_ENHANCED',
+        pattern: /f\s+Employee's\s+address\s+and\s+ZIP\s+code\s+([^\n]+?)(?:\n|a\s+Employee's\s+social|Employee's\s+social|$)/i,
         example: 'f Employee\'s address and ZIP code 315 AVENUE , APT 900, 78900'
       },
       {
-        name: 'W2_NAME_ADDRESS_COMBINED',
-        pattern: /(?:e\/f|e\/f)\s+Employee's\s+name,\s+address\s+and\s+ZIP\s+code\s+[A-Z][A-Z\s]+?\s+([0-9][^\n]*?)(?:\n|$)/i,
-        example: 'e/f Employee\'s name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST...'
+        name: 'W2_NAME_ADDRESS_COMBINED_ENHANCED',
+        pattern: /(?:e\/f|e\/f)\s+Employee's\s+name,?\s+address,?\s+and\s+ZIP\s+code\s+[A-Z][A-Z\s]+?\s+([0-9][^\n]*?)(?:\n|$)/i,
+        example: 'e/f Employee\'s name, address and ZIP code MICHAEL JACKSON 1103 BERNARD ST APT 712 DENTON, TX 76201'
       },
       {
-        name: 'W2_AFTER_NAME_MULTILINE',
-        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+[A-Za-z\s]+?\s+([0-9][^\n]*?)(?:\n|$)/i,
-        example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands...'
-      },
-      {
-        name: 'W2_INLINE_FULL_ADDRESS',
-        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+[A-Za-z\s]+?\s+(\d+[^A-Z]*?[A-Z][A-Za-z\s]+?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?)(?:\s|$)/i,
+        name: 'W2_AFTER_NAME_MULTILINE_ENHANCED',
+        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+[A-Za-z\s]+?\s+([0-9][^\n]*?)(?:\n|Employee's\s+social|$)/i,
         example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands Apt. 691 Sandraport UT 35155-6840'
       },
       {
-        name: 'W2_ADDRESS_MULTILINE',
+        name: 'W2_INLINE_FULL_ADDRESS_ENHANCED',
+        pattern: /(?:e\s+)?Employee's\s+first\s+name\s+and\s+initial\s+Last\s+name\s+[A-Za-z\s]+?\s+(\d+[^A-Z]*?[A-Z][A-Za-z\s]+?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?)(?:\s|$)/i,
+        example: 'e Employee\'s first name and initial Last name Michelle Hicks 0121 Gary Islands Apt. 691 Sandraport UT 35155-6840'
+      },
+      
+      // Tier 3: Standard address field patterns
+      {
+        name: 'W2_ADDRESS_MULTILINE_ENHANCED',
         pattern: /Employee's\s+address\s+and\s+ZIP\s+code\s*\n([^\n]+(?:\n[^\n]+)*?)(?=\n\s*\n|\nEmployee's\s+social|\nEmployer|\n[a-z]\s+Employee|\n\d+\s+|$)/i,
         example: 'Employee\'s address and ZIP code\n123 Main St\nAnytown TX 12345'
       },
       {
-        name: 'W2_ADDRESS_FLEXIBLE',
+        name: 'W2_ADDRESS_FLEXIBLE_ENHANCED',
         pattern: /Employee's\s+address[^\n]*\n([^\n]+(?:\n[0-9A-Za-z][^\n]*)*?)(?=\n\s*\n|\nEmployee's\s+social|\nEmployer|\n[a-z]\s+Employee|\n\d+\s+|$)/i,
         example: 'Employee\'s address and ZIP code\n123 Main St\nAnytown TX 12345'
       },
       {
-        name: 'ADDRESS_ZIP_FALLBACK',
-        pattern: /address\s+and\s+ZIP\s+code[^\n]*\n([^\n]+(?:\n[^\n]+)*?)(?:\n\s*\n|social\s+security|Employer|$)/i,
+        name: 'ADDRESS_ZIP_FALLBACK_ENHANCED',
+        pattern: /address\s+and\s+ZIP\s+code[^\n]*\n([^\n]+(?:\n[^\n]+)*?)(?:\n\s*\n|social\s+security|Employer|Employee's\s+social|$)/i,
         example: 'address and ZIP code\n123 Main St\nAnytown TX 12345'
       },
+      
+      // Tier 4: Generic address patterns
       {
-        name: 'GENERIC_ADDRESS',
-        pattern: /Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|$)/i,
+        name: 'GENERIC_ADDRESS_ENHANCED',
+        pattern: /Address[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|Social|SSN|$)/i,
         example: 'Address: 123 Main St\nAnytown TX 12345'
+      },
+      {
+        name: 'RECIPIENT_ADDRESS',
+        pattern: /(?:Recipient's?\s+address|Recipient\s+address)[:\s]+([^\n]+(?:\n[^\n]+)*?)(?:\n\n|Employee|Employer|Social|SSN|$)/i,
+        example: 'Recipient address: 456 Oak Street\nAustin TX 73301'
+      },
+      
+      // Tier 5: Fallback patterns for partial addresses
+      {
+        name: 'STREET_WITH_UNIT_FALLBACK',
+        pattern: /\b(\d+\s+[A-Z][A-Z\s]+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE)\s+(?:APT|APARTMENT|UNIT|SUITE|STE)\s*\d+)\b/i,
+        example: '789 Pine Ave APT 4B'
+      },
+      {
+        name: 'STREET_ADDRESS_FALLBACK',
+        pattern: /\b(\d+\s+[A-Z][A-Z\s]+?(?:ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|BLVD|BOULEVARD|LN|LANE|CT|COURT|PL|PLACE|WAY|PKWY|PARKWAY|CIR|CIRCLE))\b/i,
+        example: '100 Business Park Dr'
+      },
+      {
+        name: 'ZIP_CODE_CONTEXT_FALLBACK',
+        pattern: /([A-Z][A-Z\s]*?,?\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)/i,
+        example: 'CORPORATE CITY, CA 90210'
       }
     ];
     
